@@ -1,0 +1,35 @@
+{
+  "name": "ff-membership",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fritzy Force \u2014 Recruitment & Member Portal. Next.js static export, data dummy (siap migrasi ke Supabase).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "preview": "npx serve@latest out -l 3000",
+    "deploy:workers": "npm run build && wrangler deploy",
+    "deploy:pages": "npm run build && wrangler pages deploy out --project-name=ff-membership",
+    "db:start": "supabase start -x imgproxy,edge-runtime,logflare,vector,supavisor,realtime",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:test": "supabase test db",
+    "db:seed": "node --env-file=.env.local scripts/seed-dev.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "supabase": "^2.120.0",
+    "tailwindcss": "3.4.19",
+    "typescript": "^5.7.3",
+    "wrangler": "^4.0.0"
+  }
+}

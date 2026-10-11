@@ -1,0 +1,12 @@
+# ---------------------------------------------------------------------------
+# Cloudflare Workers (Static Assets)
+#   npm run build  ->  hasil ada di ./out
+#   npx wrangler deploy
+# ---------------------------------------------------------------------------
+name = "ff-membership"
+compatibility_date = "2026-01-01"
+
+[assets]
+directory = "./out"
+not_found_handling = "404-page"
+html_handling = "auto-trailing-slash"

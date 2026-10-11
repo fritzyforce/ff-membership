@@ -1,0 +1,18 @@
+node_modules/
+.next/
+out/
+.env*
+.DS_Store
+*.log
+.vercel
+.wrangler
+next-env.d.ts
+.netlify
+
+# contoh env boleh di-commit
+!.env.example
+
+# build & supabase CLI
+*.tsbuildinfo
+supabase/.temp
+supabase/.branches

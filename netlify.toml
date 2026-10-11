@@ -1,0 +1,16 @@
+# ---------------------------------------------------------------------------
+# Netlify — static export (folder `out`)
+# ---------------------------------------------------------------------------
+[build]
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Matikan plugin Next runtime Netlify: project ini sudah full static export.
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
