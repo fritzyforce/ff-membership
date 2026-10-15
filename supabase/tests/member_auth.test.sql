@@ -9,7 +9,7 @@ delete from public.profiles where role = 'member';
 delete from public.members;
 update public.member_counter set last_value = 0;
 
-insert into public.account_provisioning (email, role, display_name) values ('adm2@test.local', 'admin', 'Admin Dua');
+insert into public.account_provisioning (email, role, display_name) values ('adm2@test.local', 'admin_finance', 'Admin Finance Dua');
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000c0', 'adm2@test.local');
 
 -- ============================================================ trigger sign-up
@@ -70,16 +70,17 @@ select throws_ok($$insert into public.account_provisioning (email, role) values 
 
 -- ========================================================== edit profil sendiri
 select lives_ok($$select public.update_my_member_profile(
-  'Jl. Baru 1', '0812-3456-7890', 'budi.line', '@budi', '', '')$$, 'anggota bisa edit profil sendiri');
+  'Budi', 'Bandung', date '2000-01-02', 'Jl. Baru 1', 'budi.line', '@budi', '', '')$$, 'anggota bisa edit profil sendiri');
 select throws_ok($$select public.update_my_member_profile(
-  'Jl. Baru 1', '12345', 'budi.line', '@budi', '', '')$$, 'P0001', 'INVALID_PHONE', 'nomor HP tidak valid ditolak');
+  '', 'Bandung', null, '', 'budi.line', '@budi', '', '')$$, 'P0001', 'INVALID_NICKNAME', 'nickname kosong ditolak');
 select throws_ok($$select public.update_my_member_profile(
-  'Jl. Baru 1', '081234567890', 'budi.line', '', '', '')$$, 'P0001', 'SOCIAL_REQUIRED',
-  'minimal satu sosial media wajib');
+  'Budi', '  ', null, '', 'budi.line', '@budi', '', '')$$, 'P0001', 'INVALID_DOMICILE',
+  'domisili wajib');
 
 reset role;
-select is((select phone || '|' || line_id || '|' || social_x from public.members where member_number = 'FF-801'),
-  '081234567890|budi.line|@budi', 'data tersimpan & nomor HP dinormalisasi');
+select is((select nickname || '|' || domicile || '|' || line_id || '|' || social_x || '|' || birth_date::text
+           from public.members where member_number = 'FF-801'),
+  'Budi|Bandung|budi.line|@budi|2000-01-02', 'data tersimpan');
 select is((select address from public.members where member_number = 'FF-802'), '',
   'anggota lain tidak ikut berubah');
 
@@ -89,7 +90,7 @@ set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-0000000000d3","role":"authenticated"}', true);
 select throws_ok($$select public.update_my_member_profile(
-  'Jl. Baru 2', '081234567890', 'budi.line', '@budi', '', '')$$, '42501', 'FORBIDDEN',
+  'Budi', 'Bandung', null, 'Jl. Baru 2', 'budi.line', '@budi', '', '')$$, '42501', 'FORBIDDEN',
   'anggota revoked tidak bisa edit profil');
 reset role;
 update public.members set status = 'active' where member_number = 'FF-801';
@@ -99,11 +100,11 @@ set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-0000000000c0","role":"authenticated"}', true);
 select throws_ok($$select public.update_my_member_profile(
-  'x', '081234567890', 'x', '@x', '', '')$$, '42501', 'FORBIDDEN', 'admin tanpa profil anggota ditolak');
+  'x', 'x', null, 'x', 'x', '@x', '', '')$$, '42501', 'FORBIDDEN', 'admin tanpa profil anggota ditolak');
 select cmp_ok((select count(*)::int from public.members), '>=', 3, 'admin melihat semua anggota');
 set local role anon;
 select throws_ok($$select public.update_my_member_profile(
-  'x', '081234567890', 'x', '@x', '', '')$$, '42501', null, 'anon tidak bisa edit profil');
+  'x', 'x', null, 'x', 'x', '@x', '', '')$$, '42501', null, 'anon tidak bisa edit profil');
 select ok(not has_function_privilege('anon', 'public.next_member_number()', 'execute')
       and not has_function_privilege('authenticated', 'public.next_member_number()', 'execute'),
   'next_member_number() tidak bisa dipanggil langsung dari browser');

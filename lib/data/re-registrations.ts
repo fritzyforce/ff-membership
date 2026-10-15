@@ -9,6 +9,7 @@ import { DataError } from "@/lib/errors";
 import { getProofUrl, uploadProof } from "@/lib/data/proofs";
 import { getSupabase } from "@/lib/supabase/client";
 import type {
+  OldMemberNumberStatus,
   ReRegistration,
   ReRegistrationPublicStatus,
   ReRegistrationStatus,
@@ -16,8 +17,20 @@ import type {
 
 const ERROR_TEXT: Record<string, string> = {
   INVALID_NAME: "Nama lengkap tidak valid (maksimal 120 karakter).",
+  INVALID_NICKNAME: "Nickname tidak valid (maksimal 60 karakter).",
   INVALID_EMAIL: "Format email tidak valid.",
   INVALID_LINE_ID: "ID Line tidak valid (maksimal 60 karakter).",
+  INVALID_DOMICILE: "Domisili tidak valid (maksimal 100 karakter).",
+  INVALID_SOCIAL: "Username sosial media maksimal 60 karakter.",
+  SOCIAL_REQUIRED: "Isi minimal salah satu akun sosial media (X, Instagram, atau TikTok).",
+  INVALID_ADDRESS: "Alamat lengkap maksimal 300 karakter.",
+  INVALID_BIRTH_DATE: "Tanggal lahir tidak valid.",
+  INVALID_OLD_NUMBER: "Nomor anggota lama wajib diisi.",
+  OLD_NUMBER_NOT_FOUND:
+    "Nomor anggota lama tidak ditemukan di daftar. Periksa kembali penulisannya atau hubungi admin.",
+  OLD_NUMBER_ALREADY_REGISTERED: "Nomor anggota lama ini sudah melakukan registrasi ulang.",
+  OLD_NUMBER_IN_USE:
+    "Nomor anggota lama ini sedang dipakai pada pengajuan registrasi ulang lain yang menunggu review.",
   INVALID_PROOF: "Bukti pembayaran tidak valid. Unggah ulang file JPG/PNG.",
   PROOF_NOT_FOUND: "Bukti pembayaran belum terunggah. Coba kirim ulang.",
   EMAIL_ALREADY_MEMBER: "Email ini sudah terdaftar sebagai anggota. Silakan registrasi akun atau login.",
@@ -44,8 +57,16 @@ interface Row {
   id: string;
   code: string;
   full_name: string;
+  nickname: string;
   email: string;
   line_id: string;
+  domicile: string;
+  social_x: string;
+  social_instagram: string;
+  social_tiktok: string;
+  address: string;
+  birth_date: string | null;
+  old_member_number: string | null;
   proof_path: string;
   status: ReRegistrationStatus;
   review_note: string;
@@ -61,8 +82,16 @@ function fromRow(r: Row): ReRegistration {
     id: r.id,
     code: r.code,
     fullName: r.full_name,
+    nickname: r.nickname,
     email: r.email,
     lineId: r.line_id,
+    domicile: r.domicile,
+    socialX: r.social_x,
+    socialInstagram: r.social_instagram,
+    socialTiktok: r.social_tiktok,
+    address: r.address,
+    birthDate: r.birth_date ?? "",
+    oldMemberNumber: r.old_member_number,
     proofPath: r.proof_path,
     status: r.status,
     reviewNote: r.review_note,
@@ -77,9 +106,30 @@ function fromRow(r: Row): ReRegistration {
 /* ------------------------------------------------------------------ */
 
 export interface ReRegistrationInput {
-  fullName: string;
   email: string;
+  fullName: string;
+  nickname: string;
   lineId: string;
+  domicile: string;
+  /** Nomor anggota lama (wajib; harus ada di daftar & belum registrasi ulang) */
+  oldMemberNumber: string;
+  /** Opsional — string kosong bila tidak diisi */
+  socialX: string;
+  socialInstagram: string;
+  socialTiktok: string;
+  address: string;
+  /** YYYY-MM-DD atau "" */
+  birthDate: string;
+}
+
+/**
+ * Cek cepat nomor anggota lama untuk umpan balik di form. Server mengecek ulang
+ * saat submit (`submit_re_registration`), jadi hasil ini hanya panduan.
+ */
+export async function checkOldMemberNumber(number: string): Promise<OldMemberNumberStatus> {
+  const { data, error } = await getSupabase().rpc("check_old_member_number", { p_number: number });
+  if (error) throw toDataError(error);
+  return data as OldMemberNumberStatus;
 }
 
 /**
@@ -91,8 +141,16 @@ export async function submitReRegistration(input: ReRegistrationInput, proof: Fi
   const path = await uploadProof("re-registrations", proof);
   const { data, error } = await getSupabase().rpc("submit_re_registration", {
     p_full_name: input.fullName,
+    p_nickname: input.nickname,
     p_email: input.email,
     p_line_id: input.lineId,
+    p_domicile: input.domicile,
+    p_old_member_number: input.oldMemberNumber,
+    p_social_x: input.socialX,
+    p_social_instagram: input.socialInstagram,
+    p_social_tiktok: input.socialTiktok,
+    p_address: input.address,
+    p_birth_date: input.birthDate || null,
     p_proof_path: path,
   });
   if (error) throw toDataError(error);
@@ -149,7 +207,9 @@ export async function listReRegistrations({ page, pageSize, status, query }: Lis
   // buang karakter yang punya arti khusus di sintaks filter PostgREST / LIKE
   const term = query.replace(/[%_\\",()*]/g, " ").trim();
   if (term) {
-    q = q.or(`full_name.ilike."%${term}%",email.ilike."%${term}%",code.ilike."%${term}%"`);
+    q = q.or(
+      `full_name.ilike."%${term}%",nickname.ilike."%${term}%",email.ilike."%${term}%",code.ilike."%${term}%",old_member_number.ilike."%${term}%"`,
+    );
   }
 
   const { data, error, count } = await q;

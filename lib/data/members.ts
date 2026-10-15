@@ -12,15 +12,16 @@ interface MemberRow {
   member_number: string;
   source: MemberSource;
   full_name: string;
-  birth_place: string;
+  nickname: string;
+  domicile: string;
   birth_date: string | null;
   address: string;
   social_x: string;
   social_instagram: string;
   social_tiktok: string;
   email: string;
-  phone: string;
   line_id: string;
+  old_member_number: string | null;
   status: MemberStatus;
   joined_at: string;
   dues_start_period: string;
@@ -33,15 +34,16 @@ function fromRow(r: MemberRow): Member {
     source: r.source,
     applicantId: null,
     fullName: r.full_name,
-    birthPlace: r.birth_place,
+    nickname: r.nickname,
+    domicile: r.domicile,
     birthDate: r.birth_date ?? "",
     address: r.address,
     socialX: r.social_x,
     socialInstagram: r.social_instagram,
     socialTiktok: r.social_tiktok,
     email: r.email,
-    phone: r.phone,
     lineId: r.line_id,
+    oldMemberNumber: r.old_member_number,
     status: r.status,
     joinedAt: r.joined_at,
     duesStartPeriod: r.dues_start_period,
@@ -57,12 +59,20 @@ export async function getMyMember(): Promise<Member | null> {
 
 export type MemberProfileInput = Pick<
   Member,
-  "address" | "phone" | "lineId" | "socialX" | "socialInstagram" | "socialTiktok"
+  | "nickname"
+  | "domicile"
+  | "birthDate"
+  | "address"
+  | "lineId"
+  | "socialX"
+  | "socialInstagram"
+  | "socialTiktok"
 >;
 
 const ERROR_TEXT: Record<string, string> = {
   INVALID_NAME: "Nama lengkap wajib diisi (maksimal 120 karakter).",
-  INVALID_BIRTH_PLACE: "Tempat lahir maksimal 80 karakter.",
+  INVALID_NICKNAME: "Nickname wajib diisi (maksimal 60 karakter).",
+  INVALID_DOMICILE: "Domisili wajib diisi (maksimal 100 karakter).",
   INVALID_BIRTH_DATE: "Tanggal lahir tidak valid.",
   INVALID_DUES_START: "Bulan awal iuran tidak valid (antara Januari 2020 dan bulan depan).",
   NOT_FOUND: "Anggota tidak ditemukan.",
@@ -71,11 +81,9 @@ const ERROR_TEXT: Record<string, string> = {
   CANNOT_MODIFY_SELF: "Kamu tidak bisa mengubah akun atau keanggotaanmu sendiri.",
   NO_ACCOUNT: "Anggota ini belum punya akun.",
   LAST_SUPERADMIN: "Tidak bisa: harus tetap ada minimal satu superadmin aktif.",
-  INVALID_ADDRESS: "Alamat wajib diisi (maksimal 300 karakter).",
-  INVALID_PHONE: "No. HP tidak valid. Gunakan format 08xxxxxxxxxx.",
+  INVALID_ADDRESS: "Alamat maksimal 300 karakter.",
   INVALID_LINE_ID: "ID Line wajib diisi (maksimal 60 karakter).",
   INVALID_SOCIAL: "Username sosial media maksimal 60 karakter.",
-  SOCIAL_REQUIRED: "Isi minimal salah satu akun sosial media.",
   FORBIDDEN: "Keanggotaanmu tidak aktif atau kamu perlu login ulang.",
 };
 
@@ -85,8 +93,10 @@ function toDataError(error: { message?: string } | null, fallback = "Terjadi kes
 
 export async function updateMyProfile(input: MemberProfileInput) {
   const { error } = await getSupabase().rpc("update_my_member_profile", {
+    p_nickname: input.nickname,
+    p_domicile: input.domicile,
+    p_birth_date: input.birthDate || null,
     p_address: input.address,
-    p_phone: input.phone,
     p_line_id: input.lineId,
     p_social_x: input.socialX,
     p_social_instagram: input.socialInstagram,
@@ -135,7 +145,9 @@ export async function listMembers({ page, pageSize, status, query }: MemberListP
   // buang karakter yang punya arti khusus di sintaks filter PostgREST / LIKE
   const term = query.replace(/[%_\\",()*]/g, " ").trim();
   if (term) {
-    q = q.or(`full_name.ilike."%${term}%",email.ilike."%${term}%",member_number.ilike."%${term}%"`);
+    q = q.or(
+      `full_name.ilike."%${term}%",nickname.ilike."%${term}%",email.ilike."%${term}%",member_number.ilike."%${term}%",old_member_number.ilike."%${term}%"`,
+    );
   }
   const { data, error, count } = await q;
   if (error) throw new DataError("Gagal memuat daftar anggota. Coba lagi beberapa saat.");
@@ -151,10 +163,10 @@ export async function getMemberById(id: string): Promise<AdminMemberRow | null> 
 export type AdminMemberInput = Pick<
   Member,
   | "fullName"
-  | "birthPlace"
+  | "nickname"
+  | "domicile"
   | "birthDate"
   | "address"
-  | "phone"
   | "lineId"
   | "socialX"
   | "socialInstagram"
@@ -166,10 +178,10 @@ export async function adminUpdateMember(id: string, input: AdminMemberInput) {
   const { error } = await getSupabase().rpc("admin_update_member", {
     p_id: id,
     p_full_name: input.fullName,
-    p_birth_place: input.birthPlace,
+    p_nickname: input.nickname,
+    p_domicile: input.domicile,
     p_birth_date: input.birthDate || null,
     p_address: input.address,
-    p_phone: input.phone,
     p_line_id: input.lineId,
     p_social_x: input.socialX,
     p_social_instagram: input.socialInstagram,

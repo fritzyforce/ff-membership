@@ -6,10 +6,12 @@ import type { DuesPayment, DuesSummary, Member } from "@/lib/types";
 export function ProfileRows({ member, withBirth = true }: { member: Member; withBirth?: boolean }) {
   return (
     <>
-      {withBirth && <InfoRow label="Tempat, Tgl Lahir" value={birthLine(member)} />}
-      <InfoRow label="Alamat Domisili" value={member.address} />
-      <InfoRow label="No. HP" value={member.phone} />
+      <InfoRow label="Nickname" value={member.nickname || "—"} />
+      {withBirth && <InfoRow label="Tanggal Lahir" value={birthLine(member)} />}
+      <InfoRow label="Domisili" value={member.domicile || "—"} />
+      <InfoRow label="Alamat Lengkap" value={member.address || "—"} />
       <InfoRow label="ID Line" value={member.lineId} />
+      {member.oldMemberNumber && <InfoRow label="Nomor Anggota Lama" value={member.oldMemberNumber} />}
       {socialsOf(member).map((s) => (
         <InfoRow key={s.label} label={s.long} value={s.value} />
       ))}
@@ -115,7 +117,7 @@ export function DuesSummaryCard({ summary }: { summary: DuesSummary }) {
           <span className="text-body-sm text-gold-100">{formatPeriod(summary.startPeriod)}</span>
         </div>
         <div className="row justify-between gap-4">
-          <span className="text-body-sm">Tertutup sampai</span>
+          <span className="text-body-sm">Bulan dibayar sampai</span>
           <span className="text-body-sm text-gold-100">
             {summary.coveredThrough ? formatPeriod(summary.coveredThrough) : "Belum ada pembayaran"}
           </span>

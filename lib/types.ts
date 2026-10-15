@@ -41,20 +41,23 @@ export type MemberSource = "recruitment" | "re_registration";
 
 export interface Member {
   id: string;
-  /** Nomor anggota, mis. FF-2026-0417 */
+  /** Nomor anggota, mis. FF-017 */
   memberNumber: string;
   source: MemberSource;
   applicantId: string | null;
   fullName: string;
-  birthPlace: string;
+  nickname: string;
+  domicile: string;
+  /** Opsional; "" bila kosong */
   birthDate: string;
   address: string;
   socialX: string;
   socialInstagram: string;
   socialTiktok: string;
   email: string;
-  phone: string;
   lineId: string;
+  /** Nomor anggota lama (hanya anggota hasil registrasi ulang) */
+  oldMemberNumber: string | null;
   status: MemberStatus;
   joinedAt: string;
   /** Bulan pertama yang ditagih uang kas (YYYY-MM) */
@@ -72,8 +75,19 @@ export interface ReRegistration {
   /** Kode acak, mis. RU-7K3F-9Q2M */
   code: string;
   fullName: string;
+  nickname: string;
   email: string;
   lineId: string;
+  domicile: string;
+  /** Opsional; "" bila kosong */
+  socialX: string;
+  socialInstagram: string;
+  socialTiktok: string;
+  address: string;
+  /** ISO date (YYYY-MM-DD) atau "" */
+  birthDate: string;
+  /** Nomor anggota lama yang diklaim pendaftar (null pada baris sebelum field ini ada) */
+  oldMemberNumber: string | null;
   /** Path bukti bayar di bucket privat payment-proofs */
   proofPath: string;
   status: ReRegistrationStatus;
@@ -95,13 +109,26 @@ export interface ReRegistrationPublicStatus {
   createdAt: string;
 }
 
+/** Hasil pengecekan nomor anggota lama: ok = ada & belum registrasi ulang. */
+export type OldMemberNumberStatus = "ok" | "not_found" | "registered" | "in_use";
+
+/** Baris daftar nomor anggota lama (admin). */
+export interface LegacyMember {
+  oldMemberNumber: string;
+  isRegistered: boolean;
+  registeredAt: string | null;
+  /** Anggota hasil registrasi ulang yang memakai nomor ini */
+  member: { memberNumber: string; fullName: string } | null;
+  createdAt: string;
+}
+
 export type DuesStatus = "processing" | "paid" | "rejected";
 
 /** Pembayaran uang kas (data nyata dari Supabase). */
 export interface DuesPayment {
   id: string;
   memberId: string;
-  /** Rentang bulan yang ditutup pembayaran ini (YYYY-MM, urut; bisa berselang bila ada bulan yang dibuka lagi) */
+  /** Rentang bulan yang dibayar pembayaran ini (YYYY-MM, urut; bisa berselang bila ada bulan yang dibuka lagi) */
   periodFrom: string;
   periodTo: string;
   /** Jumlah bulan = amount / iuran bulanan */
@@ -125,16 +152,16 @@ export interface DuesPayment {
 export interface DuesSummary {
   /** Bulan pertama yang ditagih (bulan registrasi / registrasi ulang) */
   startPeriod: string;
-  /** Bulan yang akan ditutup pembayaran berikutnya (bulan belum tertutup paling awal) */
+  /** Bulan yang akan dibayar pembayaran berikutnya (bulan belum dibayar paling awal) */
   nextPeriod: string | null;
-  /** Bulan terjauh yang sudah tertutup (termasuk yang masih diverifikasi) */
+  /** Bulan terjauh yang sudah dibayar (termasuk yang masih diverifikasi) */
   coveredThrough: string | null;
-  /** Jumlah bulan ≤ bulan berjalan yang belum tertutup */
+  /** Jumlah bulan ≤ bulan berjalan yang belum dibayar */
   arrearsCount: number;
   monthlyAmount: number;
 }
 
-export type Role = "member" | "admin" | "superadmin";
+export type Role = "member" | "admin" | "admin_finance" | "superadmin";
 
 export interface Account {
   id: string;

@@ -109,7 +109,7 @@ export async function getDuesSummary(memberId?: string): Promise<DuesSummary> {
   };
 }
 
-/** Bulan-bulan yang akan tertutup oleh nominal ini (dihitung server, urut dari tunggakan paling awal). */
+/** Bulan-bulan yang akan dibayar oleh nominal ini (dihitung server, urut dari tunggakan paling awal). */
 export async function previewDues(amount: number): Promise<string[]> {
   const { data, error } = await getSupabase().rpc("preview_dues_payment", { p_amount: amount });
   if (error) throw toDataError(error);

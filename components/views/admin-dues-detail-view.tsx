@@ -8,6 +8,7 @@ import AdminShell, { AdminTopbar } from "@/components/layout/admin-shell";
 import { IconBack } from "@/components/ui/icons";
 import { Badge, Loading, Notice } from "@/components/ui/primitives";
 import ProofCard from "@/components/ui/proof-card";
+import { FINANCE_ONLY_NOTICE, canReviewFinance } from "@/lib/auth";
 import { approveDues, getDues, rejectDues } from "@/lib/data/dues";
 import { DUES_STATUS, formatDateShort, formatPeriodRange, formatRupiah } from "@/lib/format";
 import { useData } from "@/lib/hooks";
@@ -15,7 +16,7 @@ import type { DuesPayment } from "@/lib/types";
 
 /** Admin: cek bukti pembayaran uang kas, lalu Approve / Reject. */
 export function AdminDuesDetailView() {
-  return <AdminShell>{() => <Detail />}</AdminShell>;
+  return <AdminShell>{(session) => <Detail canReview={canReviewFinance(session.role)} />}</AdminShell>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
@@ -32,7 +33,7 @@ function formatDateTime(iso: string) {
   return `${formatDateShort(iso)}, ${time}`;
 }
 
-function Detail() {
+function Detail({ canReview }: { canReview: boolean }) {
   const id = useSearchParams().get("id") ?? "";
   const [version, setVersion] = useState(0);
   const { data: item, error } = useData(() => getDues(id), [id, version]);
@@ -46,18 +47,18 @@ function Detail() {
       {error && <Notice tone="error">{error}</Notice>}
       {item === undefined && !error && <Loading />}
       {item === null && <Notice tone="error">Pembayaran tidak ditemukan.</Notice>}
-      {item && <DetailBody item={item} onChanged={() => setVersion((v) => v + 1)} />}
+      {item && <DetailBody item={item} canReview={canReview} onChanged={() => setVersion((v) => v + 1)} />}
     </>
   );
 }
 
-function DetailBody({ item, onChanged }: { item: DuesPayment; onChanged: () => void }) {
+function DetailBody({ item, canReview, onChanged }: { item: DuesPayment; canReview: boolean; onChanged: () => void }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const noteRef = useRef<HTMLTextAreaElement>(null);
   const status = DUES_STATUS[item.status];
-  const processing = item.status === "processing";
+  const processing = item.status === "processing" && canReview;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -110,6 +111,11 @@ function DetailBody({ item, onChanged }: { item: DuesPayment; onChanged: () => v
         }
       />
 
+      {item.status === "processing" && !canReview && (
+        <div className="mb-6">
+          <Notice>{FINANCE_ONLY_NOTICE}</Notice>
+        </div>
+      )}
       {item.status === "paid" && (
         <div className="mb-6">
           <Notice tone="success">

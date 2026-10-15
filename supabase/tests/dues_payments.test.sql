@@ -9,7 +9,7 @@ delete from public.audit_log;
 delete from public.profiles;
 delete from public.members;
 
-insert into public.account_provisioning (email, role, display_name) values ('adm@test.local', 'admin', 'Admin Test');
+insert into public.account_provisioning (email, role, display_name) values ('adm@test.local', 'admin_finance', 'Admin Finance Test');
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000f1', 'adm@test.local');
 
 insert into public.members (member_number, source, full_name, email, line_id) values

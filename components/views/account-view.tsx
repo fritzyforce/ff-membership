@@ -15,7 +15,7 @@ import { getDuesSummary, listMyDues } from "@/lib/data/dues";
 import { useData } from "@/lib/hooks";
 import type { Member, Session } from "@/lib/types";
 
-export function AccountHeader({ title, showPay }: { title: string; showPay?: boolean }) {
+export function AccountHeader({ title }: { title: string }) {
   const router = useRouter();
   return (
     <header className="topbar lg:gap-[14px] lg:border-b lg:border-surface-200 lg:px-16 lg:py-6">
@@ -23,11 +23,6 @@ export function AccountHeader({ title, showPay }: { title: string; showPay?: boo
       <div className="text-label topbar-title text-[16px] text-gold-100 lg:text-[17px] lg:font-semibold lg:leading-6">
         {title}
       </div>
-      {showPay && (
-        <Link href="/akun/bayar/" className="btn btn-secondary hidden lg:inline-flex">
-          Bayar Uang Kas
-        </Link>
-      )}
       <ThemeToggle />
       <button
         type="button"
@@ -60,7 +55,7 @@ function AccountContent({ session }: { session: Session }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AccountHeader title="Akun Saya" showPay />
+      <AccountHeader title="Akun Saya" />
       {error || duesError ? (
         <div className="p-6">
           <Notice tone="error">{error ?? duesError}</Notice>
@@ -107,9 +102,9 @@ function AccountContent({ session }: { session: Session }) {
           </section>
 
           <section className="stack gap-3 lg:gap-4">
-            <div className="row items-center justify-between">
+            <div className="row flex-wrap items-center justify-between gap-3">
               <h2 className="text-h2 text-[18px]">Riwayat Uang Kas</h2>
-              <Link href="/akun/bayar/" className="text-body-sm text-gold-100 underline lg:hidden">
+              <Link href="/akun/bayar/" className="btn btn-primary btn-sm">
                 Bayar Uang Kas
               </Link>
             </div>
@@ -137,8 +132,10 @@ function EditProfileForm({
   onCancel: () => void;
 }) {
   const [v, setV] = useState<MemberProfileInput>({
+    nickname: member.nickname,
+    domicile: member.domicile,
+    birthDate: member.birthDate,
     address: member.address,
-    phone: member.phone,
     lineId: member.lineId,
     socialX: member.socialX,
     socialInstagram: member.socialInstagram,
@@ -154,16 +151,8 @@ function EditProfileForm({
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!v.address.trim() || !v.phone.trim() || !v.lineId.trim()) {
-      setError("Alamat, No. HP, dan ID Line wajib diisi.");
-      return;
-    }
-    if (!/^(\+62|0)8\d{7,12}$/.test(v.phone.replace(/[\s-]/g, ""))) {
-      setError("No. HP tidak valid. Gunakan format 08xxxxxxxxxx.");
-      return;
-    }
-    if (!v.socialX.trim() && !v.socialInstagram.trim() && !v.socialTiktok.trim()) {
-      setError("Isi minimal salah satu akun sosial media.");
+    if (!v.nickname.trim() || !v.domicile.trim() || !v.lineId.trim()) {
+      setError("Nickname, domisili, dan ID Line wajib diisi.");
       return;
     }
     setBusy(true);
@@ -178,11 +167,17 @@ function EditProfileForm({
 
   return (
     <form className="stack gap-4" onSubmit={save} noValidate>
-      <Field id="e-address" label="Alamat Domisili" required>
-        <textarea id="e-address" className="input" rows={2} value={v.address} onChange={set("address")} />
+      <Field id="e-nick" label="Nickname" required>
+        <input id="e-nick" className="input" type="text" value={v.nickname} onChange={set("nickname")} />
       </Field>
-      <Field id="e-phone" label="No. HP" required>
-        <input id="e-phone" className="input" type="tel" value={v.phone} onChange={set("phone")} />
+      <Field id="e-domicile" label="Domisili" required>
+        <input id="e-domicile" className="input" type="text" value={v.domicile} onChange={set("domicile")} />
+      </Field>
+      <Field id="e-birth" label="Tanggal Lahir">
+        <input id="e-birth" className="input" type="date" value={v.birthDate} onChange={set("birthDate")} />
+      </Field>
+      <Field id="e-address" label="Alamat Lengkap">
+        <textarea id="e-address" className="input" rows={2} value={v.address} onChange={set("address")} />
       </Field>
       <Field id="e-line" label="ID Line" required>
         <input id="e-line" className="input" type="text" value={v.lineId} onChange={set("lineId")} />

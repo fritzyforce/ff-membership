@@ -10,7 +10,8 @@ Backend dimigrasi **bertahap ke Supabase**:
 
 | Fitur | Sumber data |
 |---|---|
-| **Registrasi ulang** (form, daftar & detail admin, approve/reject, cek status) | ✅ Supabase |
+| **Registrasi ulang** (form, daftar & detail admin, approve/reject, cek status, email saat approve) | ✅ Supabase |
+| **Nomor anggota lama** (daftar `legacy_members` + halaman cek admin) | ✅ Supabase |
 | **Daftar & login member** (email + password, profil sendiri) | ✅ Supabase Auth |
 | **Login admin / superadmin** | ✅ Supabase Auth (+ tabel `profiles`) |
 | **Penomoran anggota `FF-001`–`FF-999`** | ✅ Supabase |
@@ -41,7 +42,8 @@ Perintah lain: `npm run db:test` (tes pgTAP RLS/RPC), `npm run db:reset` (migras
 | Peran | Email | Password |
 |---|---|---|
 | Superadmin | `superadmin@fritzyforce.test` | `Superadmin123` |
-| Admin | `admin@fritzyforce.test` | `Admin12345` |
+| Admin (hanya lihat; tidak bisa approve/reject) | `admin@fritzyforce.test` | `Admin12345` |
+| Admin Finance | `finance@fritzyforce.test` | `Finance12345` |
 | Member **FF-001** (Teguh Prakoso) — sudah punya akun | `teguh.prakoso@fritzyforce.test` | `Member12345` |
 | Anggota **FF-002** (Wulan Sari) — **belum** punya akun | `wulan.sari@fritzyforce.test` | buat sendiri di `/register/` |
 
@@ -57,12 +59,13 @@ Profile (`profiles`) dibuat otomatis dan tertaut ke anggota. Pesan penolakan sen
 **Syarat password** — huruf besar, huruf kecil, angka, minimal 8 karakter. Ditegakkan **server**
 (`password_requirements = "lower_upper_letters_digits"` di `supabase/config.toml`); form menampilkan checklist langsung.
 
-**Konfirmasi email: DIMATIKAN** (keputusan pemilik) — akun langsung aktif dan masuk ke `/akun/`. Risikonya: siapa pun yang tahu
-email anggota yang sudah disetujui bisa membuat akunnya lebih dulu. Bisa dinyalakan lagi tanpa ubah kode (butuh SMTP) —
-lihat [docs/email-setup.md](docs/email-setup.md). Alur konfirmasi & kirim ulang tetap ada di aplikasi untuk saat dinyalakan.
+**Konfirmasi email: NYALA** — setelah `/register/`, akun dibuat tetapi **belum bisa login** sampai pemilik email mengklik tautan di
+email konfirmasi (template: `supabase/templates/confirmation.html`). Setelah klik, sesi langsung aktif dan masuk ke `/akun/`.
+Login sebelum konfirmasi ditolak dengan tombol *Kirim ulang email konfirmasi*; admin melihat status *Email terkonfirmasi* di detail anggota.
+Lokal: email masuk ke Mailpit (`http://127.0.0.1:54324`). Produksi butuh SMTP sendiri — lihat [docs/email-setup.md](docs/email-setup.md).
 
 **Login** — `/login/`: admin ke `/admin/…`, member ke `/akun/`. Anggota yang di-revoke/nonaktif ditolak.
-**Akun Saya** — profil dibaca dari Supabase; *Edit Profil* lewat RPC `update_my_member_profile` (alamat, No. HP, ID Line, sosmed).
+**Akun Saya** — profil dibaca dari Supabase; *Edit Profil* lewat RPC `update_my_member_profile` (nickname, domisili, tanggal lahir, alamat, ID Line, sosmed).
 Riwayat uang kas di halaman itu juga dari Supabase (lihat bagian *Uang kas*).
 
 **Penomoran anggota** — `FF-001` … `FF-999`, berurutan **tanpa celah**, diberikan saat admin Approve. Memakai tabel
@@ -74,19 +77,29 @@ lama `FF-2026-xxxx` sampai fitur rekrutmen dimigrasi.
 lalu buat user (Dashboard › Authentication › Add user, atau Admin API); trigger membuat profile ber-role itu:
 ```sql
 insert into public.account_provisioning (email, role, display_name)
-values ('nama@domain.com', 'admin', 'Nama Admin');   -- role: 'admin' | 'superadmin'
+values ('nama@domain.com', 'admin', 'Nama Admin');   -- role: 'admin' | 'admin_finance' | 'superadmin'
 ```
 
 **Deploy preview ke Vercel + Supabase cloud (langkah demi langkah):** [docs/deploy-vercel-supabase.md](docs/deploy-vercel-supabase.md)
 
 ### Checklist sebelum produksi
 Beberapa pengaturan hanya ada di `supabase/config.toml` (lokal) — **di project cloud harus diset manual**:
-- Authentication › Providers › Email: **Confirm email = OFF** (keputusan saat ini), password minimal 8 + wajib huruf besar/kecil/angka.
+- Authentication › Providers › Email: **Confirm email = ON**, password minimal 8 + wajib huruf besar/kecil/angka.
 - Authentication › URL Configuration: **Site URL** dan **Redirect URLs** ke domain produksi (tautan konfirmasi gagal bila tidak terdaftar).
 - **SMTP sendiri** (SMTP bawaan Supabase sangat terbatas) + atur rate limit email; pertimbangkan CAPTCHA (Turnstile) di form publik.
 - Terapkan migrasi: `supabase link` lalu `supabase db push`. Jangan jalankan `db:seed` ke produksi (script menolak host non-lokal).
 - Buat akun admin pertama lewat `account_provisioning` (lihat atas); ganti semua password dev.
-- **Setup email produksi (SMTP gratis, Vercel):** ikuti [docs/email-setup.md](docs/email-setup.md). Tanpa SMTP sendiri, konfirmasi email & lupa password tidak akan terkirim ke anggota.
+- **Setup email produksi (SMTP gratis, Vercel):** ikuti [docs/email-setup.md](docs/email-setup.md). Tanpa SMTP sendiri, konfirmasi email, lupa password, dan email approve registrasi ulang tidak akan terkirim ke anggota. Deploy juga Edge Function `send-status-email`.
+
+## Role staf
+| Role | Bisa |
+|---|---|
+| `admin` | Melihat semua data admin (registrasi ulang, uang kas, anggota, nomor lama) dan mengelola data anggota. **Tidak bisa** Approve/Reject pembayaran uang kas maupun registrasi ulang. |
+| `admin_finance` | Seperti admin, **plus** boleh Approve/Reject pembayaran uang kas serta registrasi ulang (bersama superadmin). |
+| `superadmin` | Semuanya: hak admin + hak finance (Approve/Reject) + aksi akun (ubah role, nonaktifkan akun, kirim reset password). |
+
+Penegakan ada di database (RPC `approve_/reject_dues_payment` dan `approve_/reject_re_registration` memeriksa `is_finance_admin()`),
+UI hanya menyembunyikan tombolnya. Superadmin mengubah role lewat detail anggota (*Ubah Role Akun*).
 
 ## Lupa & reset password
 `/lupa-password/` → email berisi tautan → `/reset-password/` (password baru wajib memenuhi syarat yang sama). Respons form
@@ -96,7 +109,7 @@ Template email (Indonesia): `supabase/templates/`; panduan SMTP produksi: [docs/
 ## Manajemen anggota (admin & superadmin)
 Menu **Member Management** (`/admin/members/`): daftar dengan pencarian (nama/email/nomor), filter status, pagination dari server.
 Detail (`/admin/members/detail/?id=`):
-- **Edit data** anggota (nama, tempat/tgl lahir, alamat, No. HP, ID Line, sosmed). Email tidak bisa diubah (penghubung ke akun).
+- **Edit data** anggota (nama, nickname, domisili, tgl lahir, alamat, ID Line, sosmed). Email dan nomor anggota lama tidak bisa diubah (penghubung ke akun / riwayat registrasi ulang).
 - **Status keanggotaan**: *Aktif* / *Nonaktif* / *Revoked*. Nonaktif/revoke **wajib beralasan** dan langsung menutup akses anggota
   ke profil & pembayarannya (ditegakkan RLS, bukan hanya UI), termasuk bila ia masih login. Tidak bisa mengubah diri sendiri.
 - **Info akun** (sudah punya akun, role, email terkonfirmasi, login terakhir) dan **riwayat uang kas** anggota.
@@ -107,14 +120,14 @@ Detail (`/admin/members/detail/?id=`):
 **Aturan:** iuran **Rp 20.000 per bulan** (`app_settings.dues_monthly_amount`, ubah lewat SQL/dashboard). Anggota membayar
 **kelipatan Rp 20.000** (minimal 1 bulan); tiap kelipatan = 1 bulan.
 - **Mulai ditagih** dari bulan registrasi / registrasi ulang (`members.dues_start_period`, WIB — bulan pengajuan, bukan bulan approve).
-- Anggota **tidak memilih periode**. Pembayaran otomatis menutup **bulan yang belum tertutup paling awal** lebih dulu, jadi tunggakan
-  dibayar berurutan dari yang tertua; kelebihan menutup **bulan ke depan** (maks. 12 bulan dari bulan berjalan).
-  Contoh: ditagih sejak Juli, belum bayar, sekarang Oktober → bayar Rp 60.000 menutup Juli–September; Rp 100.000 menutup Juli–November.
+- Anggota **tidak memilih periode**. Pembayaran otomatis dihitung untuk **bulan yang belum dibayar paling awal** lebih dulu, jadi tunggakan
+  dibayar berurutan dari yang tertua; kelebihan dihitung untuk **bulan ke depan** (maks. 12 bulan dari bulan berjalan).
+  Contoh: ditagih sejak Juli, belum bayar, sekarang Oktober → bayar Rp 60.000 = bulan dibayar Juli–September; Rp 100.000 = Juli–November.
 - Pembayaran yang **ditolak** membuka kembali bulan-bulannya (terisi lebih dulu pada pembayaran berikutnya); yang masih
-  *Menunggu verifikasi* sudah dianggap menutup bulannya (tidak dihitung tunggakan).
-- Ringkasan per anggota: tunggakan (n bulan), tertutup sampai bulan apa, dan bulan pembayaran berikutnya.
+  *Menunggu verifikasi* sudah dianggap membayar bulannya (tidak dihitung tunggakan).
+- Ringkasan per anggota: tunggakan (n bulan), bulan dibayar sampai kapan, dan bulan pembayaran berikutnya.
 
-**Anggota** (`/akun/bayar/`): pilih jumlah bulan (1–12; default = jumlah tunggakan), lihat total transfer dan bulan yang akan tertutup
+**Anggota** (`/akun/bayar/`): pilih jumlah bulan (1–12; default = jumlah tunggakan), lihat total transfer dan bulan yang akan dibayar
 (dihitung server), upload bukti JPG/PNG ≤ 5MB. Riwayat & ringkasan di `/akun/`; catatan penolakan terlihat.
 
 **Admin** (`/admin/uang-kas/`): antrean *Menunggu Verifikasi* (default), filter status, cari nama/email/nomor. *Review* →
@@ -123,7 +136,7 @@ melihat ringkasan iuran dan bisa menyesuaikan **"Iuran dihitung sejak"** untuk k
 
 Keamanan: anggota hanya mengunggah ke folder `dues/<id-anggota>/` miliknya dan hanya melihat pembayarannya sendiri; semua tulis lewat
 RPC (`submit_dues_payment`, `approve_dues_payment`, `reject_dues_payment`); alokasi bulan dihitung & dikunci di database (satu bulan
-hanya bisa ditutup satu pembayaran aktif; pengajuan per anggota diserialkan).
+hanya bisa dibayar oleh satu pembayaran aktif; pengajuan per anggota diserialkan).
 
 > Catatan: bukti pembayaran saat **registrasi ulang** belum dicatat sebagai uang kas bulan pertama (form-nya tidak mengisi nominal).
 
@@ -140,24 +153,50 @@ hanya bisa ditutup satu pembayaran aktif; pengajuan per anggota diserialkan).
 Cek status juga bisa pakai email pendaftaran.
 
 ## Registrasi ulang anggota lama (backend Supabase)
-**Pendaftar** — `/registrasi-ulang/` (link di homepage): nama, email, ID Line, bukti pembayaran kas (JPG/PNG ≤ 5MB).
-Bukti diunggah ke bucket privat `payment-proofs`, lalu RPC `submit_re_registration` membuat pengajuan
-berstatus **pending** dan mengembalikan kode acak `RU-XXXX-XXXX`. Status bisa dicek di `/cek-status/`
-dengan kode tersebut (hanya nama depan & status yang terlihat).
+**Data yang dikumpulkan** — `/registrasi-ulang/` (link di homepage):
+
+| Data | Wajib? |
+|---|---|
+| Email, Nama Lengkap, Nickname, ID Line, Domisili | wajib |
+| **Nomor Anggota Lama** (khusus registrasi ulang) | wajib — harus ada di daftar & belum registrasi ulang |
+| Sosial media (X, Instagram, TikTok), Alamat Lengkap, Tanggal Lahir | opsional |
+| Bukti pembayaran uang kas (JPG/PNG ≤ 5MB) | wajib |
+
+Bukti diunggah ke bucket privat `payment-proofs`, lalu RPC `submit_re_registration` membuat pengajuan berstatus **pending** dan
+mengembalikan kode acak `RU-XXXX-XXXX`. Status bisa dicek di `/cek-status/` (juga lewat `/cek-status/?kode=RU-…`, tautan yang dikirim
+di email approve); hanya nama depan & status yang terlihat.
+
+**Nomor anggota lama** — tabel `legacy_members` (`old_member_number`, `is_registered`, `member_id`, `registered_at`). Saat form diisi,
+nomor dicek (on-blur lewat `check_old_member_number`) dan **dicek ulang di server saat submit**: harus ada di tabel, `is_registered = false`,
+dan tidak sedang dipakai pengajuan *pending* lain. Penulisan dinormalisasi (spasi dibuang, huruf kapital). `is_registered` baru menjadi
+`true` saat admin **Approve** (nomor ikut tertaut ke anggota baru di `members.old_member_number`); pengajuan yang ditolak tidak
+mengunci nomornya.
 
 **Admin** — menu *Registrasi Ulang* (`/admin/registrasi-ulang/`): antrean pending (default), filter status,
-cari nama/email/kode, pagination server-side. *Review* → detail + bukti bayar (signed URL 5 menit) →
-**Approve** (membuat anggota + nomor `FF-NNN` secara atomik) atau **Reject**. Catatan review **opsional** dan hanya terlihat admin (tidak tampil di halaman pendaftar). Status publik hanya
-mengembalikan email pendaftar bila sudah approved, untuk mengisi otomatis halaman Registrasi Akun.
-Email notifikasi hasil review: kode siap tetapi pemanggilnya di-comment — lihat `docs/email-setup.md`.
+cari nama/nickname/email/kode/nomor lama, pagination server-side. *Review* → detail lengkap + bukti bayar (signed URL 5 menit) →
+**Approve** (membuat anggota + nomor `FF-NNN` secara atomik, menandai nomor lama) atau **Reject**. Catatan review **opsional** dan hanya
+terlihat admin. Status publik hanya mengembalikan email pendaftar bila sudah approved, untuk mengisi otomatis halaman Registrasi Akun.
 
-Aturan: satu pengajuan aktif per email; email yang sudah jadi anggota ditolak; yang *rejected* boleh mengajukan lagi.
+Menu **Nomor Anggota Lama** (`/admin/anggota-lama/`): ringkasan (total / sudah / belum registrasi ulang), tabel dengan filter & pencarian,
+dan *Tambah Nomor* (tempel banyak nomor sekaligus; duplikat dilewati; tercatat di audit log). Admin tidak menghapus/mengubah nomor
+dari UI — lakukan lewat SQL bila perlu koreksi.
+
+**Email saat approve** — setelah admin Approve, aplikasi memanggil Edge Function `send-status-email` yang mengirim email ke email
+pendaftar: status *disetujui*, kode & nomor anggota, tombol **Cek Status Registrasi** (`/cek-status/?kode=<kode pendaftaran>`) dan
+tautan Buat Akun. Kegagalan kirim tidak membatalkan approve; admin melihat peringatan dan bisa memakai tombol *Kirim ulang email* di
+detail. Setup: [docs/email-setup.md](docs/email-setup.md). Email penolakan sudah ada templatenya tetapi belum dipanggil.
+
+Aturan: satu pengajuan aktif per email dan per nomor anggota lama; email yang sudah jadi anggota ditolak; yang *rejected* boleh mengajukan lagi.
 
 Keamanan: browser tidak menulis tabel langsung. Semua tulis lewat RPC `security definer`; tabel dilindungi RLS
 (hanya admin aktif yang bisa membaca); anon hanya boleh upload `re-registrations/<uuid>.jpg|png`.
-Definisi: `supabase/migrations/20261011000000_re_registrations.sql`, teruji di `supabase/tests/`.
+Definisi: `supabase/migrations/20261011…_re_registrations.sql` dan `20261017…_registration_fields.sql`, teruji di `supabase/tests/`.
 
-Data contoh (`db:seed`): 2 pending, 1 approved, 1 rejected — kodenya tercetak di output seed.
+> Catatan: `check_old_member_number` bisa dipanggil publik (agar form memberi umpan balik), jadi daftar nomor lama secara teori bisa
+> ditebak satu per satu. Pertimbangkan CAPTCHA/rate limit di form publik sebelum produksi.
+
+Data contoh (`db:seed`): nomor lama `OLD-001`…`OLD-010`; 3 pending, 2 approved, 1 rejected — kodenya tercetak di output seed.
+`OLD-007`…`OLD-010` masih bebas untuk menguji form.
 
 ## Alur rekrutmen baru (masih dummy)
 > Anggota hasil alur dummy ini **tidak bisa** membuat akun nyata — hanya anggota di Supabase (hasil registrasi ulang) yang bisa.
@@ -173,11 +212,11 @@ Reset data dummy (bukan data Supabase): tombol **Reset data dummy** di sidebar a
 `ff-membership-db-v3` di localStorage. Reset data Supabase lokal: `npm run db:reset && npm run db:seed`.
 
 ## Struktur
-- `app/` — route (`/`, `/daftar`, `/daftar/berhasil`, `/cek-status`, `/login`, `/register`, `/akun`, `/akun/bayar`, `/admin/members`, `/admin/members/detail?id=`, `/admin/recruitment`, `/admin/recruitment/detail?id=`, `/registrasi-ulang`, `/admin/registrasi-ulang`)
+- `app/` — route (`/`, `/daftar`, `/daftar/berhasil`, `/cek-status`, `/login`, `/register`, `/akun`, `/akun/bayar`, `/admin/members`, `/admin/members/detail?id=`, `/admin/recruitment`, `/admin/recruitment/detail?id=`, `/registrasi-ulang`, `/admin/registrasi-ulang`, `/admin/anggota-lama`)
 - `components/views/` — isi tiap halaman; `components/layout/` — header, topbar, admin shell, auth guard; `components/ui/` — komponen design system
 - `app/globals.css` — token warna & kelas komponen dari design (tema ikut device; override via `html[data-theme]`)
 - `lib/types.ts` — model data; `lib/data/seed.ts` — data dummy rekrutmen
-- `lib/data/re-registrations.ts`, `lib/data/members.ts` (anggota: sendiri & admin), `lib/data/dues.ts` (uang kas), `lib/data/proofs.ts` (bukti bayar) — repository Supabase; `lib/validation/password.ts` — aturan password; `lib/supabase/client.ts` — client browser
+- `lib/data/re-registrations.ts`, `lib/data/legacy-members.ts` (nomor anggota lama), `lib/data/members.ts` (anggota: sendiri & admin), `lib/data/dues.ts` (uang kas), `lib/data/proofs.ts` (bukti bayar) — repository Supabase; `lib/validation/password.ts` — aturan password; `lib/supabase/client.ts` — client browser
 - `lib/data/store.ts` — repository dummy (hanya rekrutmen baru); `lib/auth.ts` — auth Supabase untuk semua peran
 - `supabase/migrations/` — skema nyata; `supabase/tests/` — pgTAP; `scripts/seed-dev.mjs` — seed dev
 - `supabase/schema.sql` — draft skema lengkap fase berikutnya (belum dipakai)

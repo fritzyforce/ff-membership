@@ -64,7 +64,12 @@ function ResendConfirmation({ email }: { email: string }) {
     <div className="stack gap-2">
       {state === "sent" && <Notice tone="success">Email konfirmasi dikirim ulang ke {email}.</Notice>}
       {error && <Notice tone="error">{error}</Notice>}
-      <button type="button" className="btn btn-secondary btn-block" onClick={resend} disabled={state === "sending"}>
+      <button
+        type="button"
+        className="btn btn-secondary btn-block"
+        onClick={resend}
+        disabled={state === "sending" || !email.trim()}
+      >
         {state === "sending" ? "Mengirim…" : "Kirim ulang email konfirmasi"}
       </button>
     </div>
@@ -86,6 +91,13 @@ export function LoginView() {
   useEffect(() => {
     if (session && !busy) router.replace(homeFor(session));
   }, [session, busy, router]);
+
+  // Tautan konfirmasi yang kedaluwarsa / sudah terpakai kembali ke sini dengan #error_code=… di URL
+  useEffect(() => {
+    if (!/[#&]error_code=/.test(window.location.hash)) return;
+    setError("Tautan konfirmasi tidak valid atau sudah kedaluwarsa. Isi emailmu lalu kirim ulang email konfirmasi.");
+    setUnconfirmed(true);
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();

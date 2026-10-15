@@ -1,24 +1,67 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import PageTopbar from "@/components/layout/page-topbar";
 import { Field, Logo, Notice, QrisImage } from "@/components/ui/primitives";
 import UploadBox from "@/components/ui/upload-box";
 import { DUES_AMOUNT } from "@/lib/config";
-import { submitReRegistration } from "@/lib/data/re-registrations";
+import { checkOldMemberNumber, submitReRegistration } from "@/lib/data/re-registrations";
 import { formatRupiah } from "@/lib/format";
+import type { OldMemberNumberStatus } from "@/lib/types";
 
-type Values = { fullName: string; email: string; lineId: string };
-type Errors = Partial<Record<keyof Values | "proof", string>>;
+type Values = {
+  email: string;
+  fullName: string;
+  nickname: string;
+  lineId: string;
+  domicile: string;
+  oldMemberNumber: string;
+  socialX: string;
+  socialInstagram: string;
+  socialTiktok: string;
+  address: string;
+  birthDate: string;
+};
+type Errors = Partial<Record<keyof Values | "proof" | "social", string>>;
 
+const EMPTY: Values = {
+  email: "",
+  fullName: "",
+  nickname: "",
+  lineId: "",
+  domicile: "",
+  oldMemberNumber: "",
+  socialX: "",
+  socialInstagram: "",
+  socialTiktok: "",
+  address: "",
+  birthDate: "",
+};
+
+const OLD_NUMBER_PROBLEM: Record<Exclude<OldMemberNumberStatus, "ok">, string> = {
+  not_found: "Nomor anggota lama tidak ditemukan di daftar. Periksa kembali penulisannya.",
+  registered: "Nomor anggota lama ini sudah melakukan registrasi ulang.",
+  in_use: "Nomor anggota lama ini sedang dipakai pada pengajuan lain yang menunggu review.",
+};
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+// Validasi akhir ada di database (RPC submit_re_registration); ini hanya umpan balik cepat.
 function validate(v: Values, file: File | null): Errors {
   const e: Errors = {};
-  if (!v.fullName.trim()) e.fullName = "Nama lengkap wajib diisi.";
   if (!v.email.trim()) e.email = "Email wajib diisi.";
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) e.email = "Format email tidak valid.";
+  if (!v.fullName.trim()) e.fullName = "Nama lengkap wajib diisi.";
+  if (!v.nickname.trim()) e.nickname = "Nickname wajib diisi.";
   if (!v.lineId.trim()) e.lineId = "ID Line wajib diisi.";
+  if (!v.domicile.trim()) e.domicile = "Domisili wajib diisi.";
+  if (!v.oldMemberNumber.trim()) e.oldMemberNumber = "Nomor anggota lama wajib diisi.";
+  if (!v.socialX.trim() && !v.socialInstagram.trim() && !v.socialTiktok.trim()) {
+    e.social = "Isi minimal salah satu akun sosial media (X, Instagram, atau TikTok).";
+  }
+  if (v.birthDate && v.birthDate > todayIso()) e.birthDate = "Tanggal lahir tidak boleh di masa depan.";
   if (!file) e.proof = "Upload bukti pembayaran uang kas.";
   return e;
 }
@@ -42,7 +85,10 @@ function QrisCard() {
  */
 export default function ReRegistrationView() {
   const router = useRouter();
-  const [values, setValues] = useState<Values>({ fullName: "", email: "", lineId: "" });
+  const [values, setValues] = useState<Values>(EMPTY);
+  // hasil cek nomor anggota lama untuk nilai `checked` (null = belum / sedang dicek)
+  const [oldCheck, setOldCheck] = useState<{ value: string; status: OldMemberNumberStatus } | null>(null);
+  const checkSeq = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -51,10 +97,31 @@ export default function ReRegistrationView() {
   const bind = (key: keyof Values) => ({
     id: `ru-${key}`,
     value: values[key],
-    "aria-invalid": errors[key] ? true : undefined,
-    onChange: (e: { target: { value: string } }) =>
-      setValues((v) => ({ ...v, [key]: e.target.value })),
+    "aria-invalid": errors[key] || (key.startsWith("social") && errors.social) ? true : undefined,
+    onChange: (e: { target: { value: string } }) => {
+      setValues((v) => ({ ...v, [key]: e.target.value }));
+      setErrors((x) => ({ ...x, [key]: undefined, ...(key.startsWith("social") ? { social: undefined } : {}) }));
+    },
   });
+
+  // Cek nomor anggota lama saat kolom ditinggalkan. Gagal cek (jaringan) diabaikan:
+  // server tetap mengecek ulang saat submit.
+  const verifyOldNumber = async () => {
+    const value = values.oldMemberNumber.trim();
+    if (!value) return;
+    const seq = ++checkSeq.current;
+    try {
+      const status = await checkOldMemberNumber(value);
+      if (seq !== checkSeq.current) return;
+      setOldCheck({ value, status });
+      setErrors((x) => ({
+        ...x,
+        oldMemberNumber: status === "ok" ? undefined : OLD_NUMBER_PROBLEM[status],
+      }));
+    } catch {
+      if (seq === checkSeq.current) setOldCheck(null);
+    }
+  };
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -94,28 +161,93 @@ export default function ReRegistrationView() {
           className="flex flex-col gap-[18px] px-6 pb-8 pt-1 lg:card lg:max-w-[760px] lg:gap-5 lg:self-start lg:p-6"
         >
           <p className="text-body-sm">
-            Khusus anggota lama Fritzy Force. Lorem ipsum dolor sit amet, consectetur adipiscing
-            elit. Semua kolom wajib diisi dan akan direview admin.
+            Khusus anggota lama Fritzy Force. Kolom bertanda <span className="field-required">*</span> wajib
+            diisi dan pengajuan akan direview admin.
           </p>
 
-          <Field id="ru-fullName" label="Nama Lengkap" required error={errors.fullName}>
-            <input className="input" type="text" placeholder="Sesuai identitas resmi" autoComplete="name" {...bind("fullName")} />
+          <Field
+            id="ru-email"
+            label="Email"
+            required
+            help="Email ini akan dipakai untuk registrasi & login akun, dan menerima kabar hasil review."
+            error={errors.email}
+          >
+            <input className="input" type="email" placeholder="Dipakai untuk login akun" autoComplete="email" {...bind("email")} />
           </Field>
 
           <div className="grid gap-[18px] lg:grid-cols-2 lg:gap-5">
-            <Field
-              id="ru-email"
-              label="Email"
-              required
-              help="Email ini akan dipakai untuk registrasi & login akun."
-              error={errors.email}
-            >
-              <input className="input" type="email" placeholder="Dipakai untuk login akun" autoComplete="email" {...bind("email")} />
+            <Field id="ru-fullName" label="Nama Lengkap" required error={errors.fullName}>
+              <input className="input" type="text" placeholder="Sesuai identitas resmi" autoComplete="name" {...bind("fullName")} />
+            </Field>
+            <Field id="ru-nickname" label="Nickname" required error={errors.nickname}>
+              <input className="input" type="text" placeholder="Nama panggilan" autoComplete="nickname" {...bind("nickname")} />
             </Field>
             <Field id="ru-lineId" label="ID Line" required error={errors.lineId}>
               <input className="input" type="text" placeholder="ID Line aktif" {...bind("lineId")} />
             </Field>
+            <Field id="ru-domicile" label="Domisili" required error={errors.domicile}>
+              <input className="input" type="text" placeholder="Kota / kabupaten tempat tinggal" {...bind("domicile")} />
+            </Field>
           </div>
+
+          <Field
+            id="ru-oldMemberNumber"
+            label="Nomor Anggota Lama"
+            required
+            help={
+              oldCheck?.status === "ok" && oldCheck.value === values.oldMemberNumber.trim()
+                ? "Nomor anggota lama ditemukan dan belum registrasi ulang."
+                : "Nomor anggota lamamu sebelum registrasi ulang ini."
+            }
+            error={errors.oldMemberNumber}
+          >
+            <input
+              className="input"
+              type="text"
+              placeholder="Nomor anggota lama"
+              autoComplete="off"
+              {...bind("oldMemberNumber")}
+              onBlur={verifyOldNumber}
+            />
+          </Field>
+
+          <fieldset className="stack m-0 gap-[18px] border-0 p-0 lg:gap-5">
+            <legend className="text-label p-0 text-gold-100">Data tambahan (opsional)</legend>
+
+            <div className="grid gap-[18px] lg:grid-cols-2 lg:gap-5">
+              <Field id="ru-birthDate" label="Tanggal Lahir" error={errors.birthDate}>
+                <input className="input" type="date" max={todayIso()} autoComplete="bday" {...bind("birthDate")} />
+              </Field>
+            </div>
+
+            <Field id="ru-address" label="Alamat Lengkap" error={errors.address}>
+              <textarea className="input" rows={2} maxLength={300} placeholder="Alamat lengkap" autoComplete="street-address" {...bind("address")} />
+            </Field>
+
+          </fieldset>
+
+          <fieldset className="stack m-0 gap-[10px] border-0 p-0">
+            <legend className="field-label p-0">
+              Sosial Media <span className="field-required">*</span>
+            </legend>
+            <div className="input-help">Isi minimal salah satu: X, Instagram, atau TikTok.</div>
+            <div className="grid gap-[18px] lg:grid-cols-3 lg:gap-5">
+              <Field id="ru-socialX" label="X (Twitter)">
+                <input className="input" type="text" maxLength={60} placeholder="@username" {...bind("socialX")} />
+              </Field>
+              <Field id="ru-socialInstagram" label="Instagram">
+                <input className="input" type="text" maxLength={60} placeholder="@username" {...bind("socialInstagram")} />
+              </Field>
+              <Field id="ru-socialTiktok" label="TikTok">
+                <input className="input" type="text" maxLength={60} placeholder="@username" {...bind("socialTiktok")} />
+              </Field>
+            </div>
+            {errors.social && (
+              <div className="input-error" role="alert">
+                {errors.social}
+              </div>
+            )}
+          </fieldset>
 
           <div className="lg:hidden">
             <QrisCard />

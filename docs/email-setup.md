@@ -4,11 +4,11 @@
 **Bisa, dan gratis** — tapi sebaiknya punya **domain sendiri**. Vercel tidak terlibat: email dikirim oleh
 **Supabase Auth** lewat server SMTP yang kamu pilih, jadi tidak peduli aplikasinya di-host di mana.
 
-> **Status saat ini:** *Confirm email* **dimatikan** (keputusan pemilik) — pendaftaran akun tidak butuh email.
-> Email **tetap dibutuhkan** untuk **lupa password** dan **reset password oleh superadmin**, jadi SMTP sendiri
-> masih perlu dipasang sebelum produksi bila fitur itu dipakai.
+> **Status saat ini:** *Confirm email* **menyala** — akun baru wajib mengonfirmasi email sebelum bisa login. Jadi SMTP sendiri
+> **wajib** sebelum produksi (konfirmasi akun, lupa password), ditambah Resend untuk email **approve registrasi ulang**.
 
-Email dipakai untuk: **lupa password**, **reset password oleh superadmin**, dan (bila *Confirm email* dinyalakan lagi) **konfirmasi akun baru**.
+Email dipakai untuk: **konfirmasi akun baru**, **lupa password**, **reset password oleh superadmin**, dan **pemberitahuan approve
+registrasi ulang** (Edge Function, lihat bagian terakhir).
 
 ## Kenapa tidak bisa pakai bawaan Supabase
 SMTP bawaan Supabase hanya untuk uji coba: **2 email/jam** dan **hanya ke anggota tim organisasi Supabase** (alamat lain
@@ -44,53 +44,52 @@ Perkiraan pemakaian: 1 email per akun baru + 1 per reset password → komunitas 
 6. **Template email**: salin isi `supabase/templates/confirmation.html` dan `recovery.html` ke
    *Authentication › Email Templates* (subjek: lihat `supabase/config.toml`). Alternatif: `supabase config push`
    (aktifkan blok `[auth.email.smtp]` di `config.toml` dan set `SMTP_PASS` di environment).
-7. **Konfirmasi email** (Authentication › Providers › Email): **Confirm email = OFF** (sesuai keputusan saat ini; lihat risikonya di bawah);
+7. **Konfirmasi email** (Authentication › Providers › Email): **Confirm email = ON**;
    password minimal 8 + wajib huruf besar/kecil/angka.
 8. **Vercel** → Settings › Environment Variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    (hanya dua ini — **jangan** menaruh service role key di Vercel).
 
 ## Cara menguji
-1. Buat akun uji lewat `/register/` dengan email anggota yang valid → langsung masuk ke `/akun/` (tanpa email).
-2. Coba `/lupa-password/` → cek inbox **dan folder spam** → klik tautan → buat password baru.
+1. Buat akun uji lewat `/register/` dengan email anggota yang valid → muncul "Cek Email Kamu". Lokal: buka Mailpit
+   (http://127.0.0.1:54324); produksi: inbox **dan folder spam**.
+2. Login sebelum mengklik tautan → ditolak dengan tombol *Kirim ulang email konfirmasi*. Klik tautan → langsung masuk ke `/akun/`.
+3. Coba `/lupa-password/` → klik tautan → buat password baru.
 4. Di Resend → *Emails* lihat status terkirim/bounce bila ada masalah.
 
-## Konfirmasi email dimatikan: risiko & cara menyalakan lagi
-Dengan *Confirm email = OFF*, akun langsung aktif saat daftar. **Risiko**: siapa pun yang tahu email seorang anggota yang sudah
-disetujui bisa membuat akunnya lebih dulu (tidak ada bukti kepemilikan email). Pengaman yang tetap berlaku: hanya email anggota
-aktif yang bisa mendaftar, dan satu anggota hanya bisa punya satu akun; admin/superadmin bisa menonaktifkan akun yang bermasalah
-dan mengirim reset password.
+## Konfirmasi email & squatting
+Dengan *Confirm email = ON*, hanya pemilik inbox yang bisa mengaktifkan akun. Pengaman lain tetap berlaku: hanya email anggota
+aktif yang bisa mendaftar, satu anggota satu akun, admin/superadmin bisa menonaktifkan akun dan mengirim reset password.
+Untuk mematikan (mis. dev tanpa SMTP): `enable_confirmations = false` di `supabase/config.toml` (lokal) / Providers › Email (cloud);
+aplikasi mendukung kedua mode tanpa perubahan kode.
 
-Untuk menyalakan lagi: pasang SMTP (langkah di atas) → Dashboard › Authentication › Providers › Email › **Confirm email = ON**
-(lokal: `enable_confirmations = true` di `supabase/config.toml`). Aplikasi mendukung kedua mode tanpa perubahan kode.
+Tanpa SMTP sama sekali, konfirmasi dan lupa password tidak akan bekerja; reset/konfirmasi harus manual lewat
+Dashboard › Authentication › Users.
 
-Tanpa SMTP sama sekali, **lupa password tidak akan bekerja**; reset harus manual lewat Dashboard › Authentication › Users.
-
-## Email notifikasi status (siap pakai, belum diaktifkan)
-Setelah admin **Approve/Reject registrasi ulang**, pendaftar bisa dikirimi email (nomor anggota + tautan Buat Akun, atau
-tautan Ajukan Ulang). Kodenya sudah ada, tetapi **pemanggilnya masih di-comment**:
+## Email approve registrasi ulang (aktif)
+Setelah admin menekan **Approve**, aplikasi memanggil Edge Function `send-status-email`, yang mengirim email ke email pendaftar:
+status *disetujui*, kode pendaftaran, nomor anggota, tombol **Cek Status Registrasi** (`SITE_URL/cek-status/?kode=<kode>`) dan tautan
+Buat Akun. Email penolakan juga sudah ada templatenya, tetapi belum dipanggil dari UI.
 
 | Bagian | Lokasi |
 |---|---|
 | Pengirim email (Resend) | `supabase/functions/send-status-email/index.ts` (Supabase Edge Function) |
 | Template HTML + teks | `supabase/functions/send-status-email/templates.ts` |
 | Pemanggil dari aplikasi | `lib/email/notify.ts` → `notifyReRegistrationReviewed(id)` |
-| Titik pasang (di-comment) | `components/views/admin-reregistration-detail-view.tsx` (cari `TODO(email)`) |
+| Titik pasang | `components/views/admin-reregistration-detail-view.tsx` (Approve + tombol *Kirim ulang email*) |
 
 Kenapa Edge Function: aplikasi ini statis (tanpa server), sedangkan kunci Resend tidak boleh ada di browser.
 Fungsi memakai JWT admin pemanggil (RLS), mengambil **penerima dan isi dari database** berdasarkan `id`, jadi tidak bisa
 dipakai mengirim email ke alamat/teks sembarang. Catatan review admin **tidak pernah** ikut dikirim.
 
-### Cara mengaktifkan
+### Cara mengaktifkan di produksi
 1. Siapkan Resend + domain terverifikasi (langkah 1–2 di atas).
 2. Isi secrets, lalu deploy fungsi:
    ```bash
    npx supabase secrets set RESEND_API_KEY=re_xxx EMAIL_FROM="Fritzy Force <noreply@domainmu.com>" SITE_URL=https://domainmu.com
    npx supabase functions deploy send-status-email
    ```
-3. Hapus tanda comment pada import dan dua pemanggil `notifyReRegistrationReviewed` di
-   `admin-reregistration-detail-view.tsx`.
-4. Uji: approve satu registrasi ulang uji → cek inbox dan dasbor Resend.
+3. Uji: approve satu registrasi ulang uji → cek inbox dan dasbor Resend.
 
-Catatan: kegagalan email tidak membatalkan approve/reject (admin hanya melihat peringatan). Menekan tombol dua kali tidak
-mungkin karena status sudah berubah, tetapi fungsi sendiri tidak membatasi pengiriman ulang.
+Sebelum fungsi ini di-deploy, Approve tetap berhasil; admin hanya melihat peringatan "email gagal dikirim" dan bisa memakai
+*Kirim ulang email* setelah fungsi siap. Fungsi tidak membatasi pengiriman ulang (admin bisa menekannya berkali-kali).
 Untuk uji lokal: `db:start` mengecualikan edge-runtime; jalankan `npx supabase functions serve` terpisah.

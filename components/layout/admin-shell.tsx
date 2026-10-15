@@ -5,24 +5,32 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import AuthGuard from "@/components/layout/auth-guard";
-import { IconClipboard, IconLogout, IconRefresh, IconUserCheck, IconUsers, IconWallet } from "@/components/ui/icons";
+import { IconClipboard, IconFile, IconLogout, IconRefresh, IconUserCheck, IconUsers, IconWallet } from "@/components/ui/icons";
 import { Logo } from "@/components/ui/primitives";
 import ThemeToggle from "@/components/ui/theme-toggle";
 import { logout } from "@/lib/auth";
 import { resetDummyData } from "@/lib/data/store";
-import type { Session } from "@/lib/types";
+import type { Role, Session } from "@/lib/types";
+
+const ROLE_NAME: Record<Role, string> = {
+  member: "Member",
+  admin: "Admin",
+  admin_finance: "Admin Finance",
+  superadmin: "Superadmin",
+};
 
 const NAV = [
   { href: "/admin/members/", label: "Member Management", Icon: IconUsers },
   { href: "/admin/recruitment/", label: "Recruitment Management", Icon: IconClipboard },
   { href: "/admin/registrasi-ulang/", label: "Registrasi Ulang", Icon: IconUserCheck },
+  { href: "/admin/anggota-lama/", label: "Nomor Anggota Lama", Icon: IconFile },
   { href: "/admin/uang-kas/", label: "Uang Kas", Icon: IconWallet },
 ];
 
 /** Shell admin (artboard Admin*): sidebar 240px di desktop, top bar di mobile. */
 export default function AdminShell({ children }: { children: (session: Session) => ReactNode }) {
   return (
-    <AuthGuard roles={["admin", "superadmin"]}>
+    <AuthGuard roles={["admin", "admin_finance", "superadmin"]}>
       {(session) => <Shell session={session}>{children(session)}</Shell>}
     </AuthGuard>
   );
@@ -67,7 +75,7 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
         </nav>
         <div className="flex-1" />
         <div className="px-4 pb-2">
-          <div className="text-caption">{session.role === "superadmin" ? "Superadmin" : "Admin"}</div>
+          <div className="text-caption">{ROLE_NAME[session.role]}</div>
           <div className="text-body-sm truncate">{session.email}</div>
         </div>
         <ThemeToggle variant="nav" />

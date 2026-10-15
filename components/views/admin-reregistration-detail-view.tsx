@@ -13,14 +13,15 @@ import {
   getReRegistration,
   rejectReRegistration,
 } from "@/lib/data/re-registrations";
-// import { notifyReRegistrationReviewed } from "@/lib/email/notify"; // TODO(email): aktifkan bersama pemanggilnya di bawah
-import { RE_REGISTRATION_STATUS, formatDateShort } from "@/lib/format";
+import { FINANCE_ONLY_NOTICE, canReviewFinance } from "@/lib/auth";
+import { notifyReRegistrationReviewed } from "@/lib/email/notify";
+import { RE_REGISTRATION_STATUS, formatDateLong, formatDateShort, socialsOf } from "@/lib/format";
 import { useData } from "@/lib/hooks";
 import type { ReRegistration } from "@/lib/types";
 
 /** Admin: cek detail + bukti bayar, lalu Approve / Reject registrasi ulang. */
 export function AdminReRegistrationDetailView() {
-  return <AdminShell>{() => <Detail />}</AdminShell>;
+  return <AdminShell>{(session) => <Detail canReview={canReviewFinance(session.role)} />}</AdminShell>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
@@ -37,7 +38,7 @@ function formatDateTime(iso: string) {
   return `${formatDateShort(iso)}, ${time}`;
 }
 
-function Detail() {
+function Detail({ canReview }: { canReview: boolean }) {
   const id = useSearchParams().get("id") ?? "";
   const [version, setVersion] = useState(0);
   const { data: item, error } = useData(() => getReRegistration(id), [id, version]);
@@ -51,18 +52,18 @@ function Detail() {
       {error && <Notice tone="error">{error}</Notice>}
       {item === undefined && !error && <Loading />}
       {item === null && <Notice tone="error">Registrasi ulang tidak ditemukan.</Notice>}
-      {item && <DetailBody item={item} onChanged={() => setVersion((v) => v + 1)} />}
+      {item && <DetailBody item={item} canReview={canReview} onChanged={() => setVersion((v) => v + 1)} />}
     </>
   );
 }
 
-function DetailBody({ item, onChanged }: { item: ReRegistration; onChanged: () => void }) {
+function DetailBody({ item, canReview, onChanged }: { item: ReRegistration; canReview: boolean; onChanged: () => void }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const status = RE_REGISTRATION_STATUS[item.status];
-  const pending = item.status === "pending";
+  const pending = item.status === "pending" && canReview;
 
   const approve = async () => {
     if (!window.confirm(`Approve registrasi ulang ${item.fullName}? Anggota baru akan dibuat.`)) return;
@@ -70,14 +71,33 @@ function DetailBody({ item, onChanged }: { item: ReRegistration; onChanged: () =
     setActionError(null);
     try {
       const number = await approveReRegistration(item.id);
-      setResult(`Disetujui. Nomor anggota: ${number}`);
-      // TODO(email): aktifkan setelah Edge Function `send-status-email` ter-deploy & secrets
-      // Resend diisi (docs/email-setup.md). Kegagalan email tidak membatalkan approve.
-      // notifyReRegistrationReviewed(item.id).catch((e: Error) => setActionError(e.message));
+      setResult(`Disetujui. Nomor anggota: ${number}. Mengirim email ke pendaftar…`);
       onChanged();
+      // Kegagalan email tidak membatalkan approve; admin bisa kirim ulang dari halaman ini.
+      try {
+        await notifyReRegistrationReviewed(item.id);
+        setResult(`Disetujui. Nomor anggota: ${number}. Email pemberitahuan terkirim ke ${item.email}.`);
+      } catch (e) {
+        setResult(`Disetujui. Nomor anggota: ${number}.`);
+        setActionError(e instanceof Error ? e.message : "Email ke pendaftar gagal dikirim.");
+      }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Gagal approve.");
       onChanged(); // muat ulang: mungkin sudah direview admin lain
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendEmail = async () => {
+    setBusy(true);
+    setActionError(null);
+    setResult(null);
+    try {
+      await notifyReRegistrationReviewed(item.id);
+      setResult(`Email pemberitahuan dikirim ulang ke ${item.email}.`);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Email gagal dikirim.");
     } finally {
       setBusy(false);
     }
@@ -89,8 +109,7 @@ function DetailBody({ item, onChanged }: { item: ReRegistration; onChanged: () =
     setActionError(null);
     try {
       await rejectReRegistration(item.id, note.trim());
-      // TODO(email): sama seperti approve di atas.
-      // notifyReRegistrationReviewed(item.id).catch((e: Error) => setActionError(e.message));
+      // Email penolakan belum dikirim otomatis (permintaan saat ini hanya untuk approve).
       onChanged(); // banner "Ditolak" muncul dari status terbaru
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Gagal reject.");
@@ -110,19 +129,31 @@ function DetailBody({ item, onChanged }: { item: ReRegistration; onChanged: () =
           </Badge>
         }
         actions={
-          pending && (
-            <>
-              <button type="button" className="btn btn-outline-magenta" disabled={busy} onClick={reject}>
-                Reject
+          <>
+            {item.status === "approved" && canReview && (
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={resendEmail}>
+                {busy ? "Mengirim…" : "Kirim ulang email"}
               </button>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={approve}>
-                {busy ? "Memproses…" : "Approve"}
-              </button>
-            </>
-          )
+            )}
+            {pending && (
+              <>
+                <button type="button" className="btn btn-outline-magenta" disabled={busy} onClick={reject}>
+                  Reject
+                </button>
+                <button type="button" className="btn btn-primary" disabled={busy} onClick={approve}>
+                  {busy ? "Memproses…" : "Approve"}
+                </button>
+              </>
+            )}
+          </>
         }
       />
 
+      {item.status === "pending" && !canReview && (
+        <div className="mb-6">
+          <Notice>{FINANCE_ONLY_NOTICE}</Notice>
+        </div>
+      )}
       {result && (
         <div className="mb-6">
           <Notice tone="success">{result}</Notice>
@@ -146,9 +177,17 @@ function DetailBody({ item, onChanged }: { item: ReRegistration; onChanged: () =
 
       <div className="flex flex-col items-start gap-6 xl:flex-row">
         <section className="card grid w-full gap-5 xl:flex-1">
-          <Info label="Nama Lengkap" value={item.fullName} />
           <Info label="Email" value={item.email} />
+          <Info label="Nama Lengkap" value={item.fullName} />
+          <Info label="Nickname" value={item.nickname} />
           <Info label="ID Line" value={item.lineId} />
+          <Info label="Domisili" value={item.domicile} />
+          <Info label="Nomor Anggota Lama" value={item.oldMemberNumber ?? ""} />
+          {socialsOf(item).map((s) => (
+            <Info key={s.label} label={s.long} value={s.value} />
+          ))}
+          <Info label="Alamat Lengkap" value={item.address} />
+          <Info label="Tanggal Lahir" value={item.birthDate ? formatDateLong(item.birthDate) : ""} />
           <Info label="Diajukan" value={formatDateTime(item.createdAt)} />
         </section>
         <ProofCard path={item.proofPath} title="Bukti Pembayaran Uang Kas" />

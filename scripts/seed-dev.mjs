@@ -28,6 +28,7 @@ const ADMINS = [
   // Password mengikuti kebijakan server: huruf besar + kecil + angka, min 8.
   { email: "superadmin@fritzyforce.test", password: "Superadmin123", role: "superadmin", name: "Super Admin" },
   { email: "admin@fritzyforce.test", password: "Admin12345", role: "admin", name: "Admin" },
+  { email: "finance@fritzyforce.test", password: "Finance12345", role: "admin_finance", name: "Admin Finance" },
 ];
 
 async function findUserByEmail(email) {
@@ -121,14 +122,32 @@ async function uploadProof(tint, folder = "re-registrations") {
 
 /* ------------------------------------------------------------ re-registrations */
 
+/* ---------------------------------------------------- nomor anggota lama */
+
+// Daftar nomor anggota lama (tabel legacy_members). OLD-001..OLD-006 dipakai contoh di bawah;
+// sisanya tetap "belum registrasi ulang" sehingga bisa dipakai menguji form /registrasi-ulang/.
+const LEGACY_NUMBERS = Array.from({ length: 10 }, (_, i) => `OLD-${String(i + 1).padStart(3, "0")}`);
+
+async function seedLegacyMembers() {
+  const { error } = await sb.from("legacy_members")
+    .upsert(LEGACY_NUMBERS.map((old_member_number) => ({ old_member_number })), { onConflict: "old_member_number", ignoreDuplicates: true });
+  if (error) throw error;
+  console.log(`✓ nomor anggota lama  ${LEGACY_NUMBERS[0]} … ${LEGACY_NUMBERS.at(-1)}`);
+}
+
+/* ------------------------------------------------------------ re-registrations */
+
 const SAMPLES = [
-  { name: "Rizky Aditya", email: "rizky.aditya@fritzyforce.test", line: "rizky.aditya", status: "pending", tint: [138, 76, 252] },
-  { name: "Sari Wulandari", email: "sari.wulandari@fritzyforce.test", line: "sari.wulandari", status: "pending", tint: [214, 179, 93] },
+  { name: "Rizky Aditya", nick: "Rizky", socialInstagram: "@rizky", email: "rizky.aditya@fritzyforce.test", line: "rizky.aditya", domicile: "Jakarta", old: "OLD-001", status: "pending", tint: [138, 76, 252] },
+  { name: "Sari Wulandari", nick: "Sari", email: "sari.wulandari@fritzyforce.test", line: "sari.wulandari", domicile: "Bandung", old: "OLD-002", status: "pending", tint: [214, 179, 93],
+    socialInstagram: "@sariw", address: "Jl. Merdeka No. 10, Bandung", birthDate: "1998-06-21" },
   // approved + sudah punya akun (login: Member12345)
-  { name: "Teguh Prakoso", email: "teguh.prakoso@fritzyforce.test", line: "teguh.prakoso", status: "approved", tint: [74, 21, 75], account: "Member12345" },
+  { name: "Teguh Prakoso", nick: "Teguh", socialInstagram: "@teguh", email: "teguh.prakoso@fritzyforce.test", line: "teguh.prakoso", domicile: "Surabaya", old: "OLD-003", status: "approved", tint: [74, 21, 75], account: "Member12345" },
   // approved tapi BELUM punya akun -> bisa dipakai menguji halaman Register
-  { name: "Wulan Sari", email: "wulan.sari@fritzyforce.test", line: "wulan.sari", status: "approved", tint: [60, 90, 160] },
-  { name: "Dewi Anggraini", email: "dewi.anggraini@fritzyforce.test", line: "dewi.angg", status: "rejected", tint: [157, 24, 76], note: "Bukti pembayaran tidak terbaca, mohon unggah ulang." },
+  { name: "Wulan Sari", nick: "Wulan", email: "wulan.sari@fritzyforce.test", line: "wulan.sari", domicile: "Depok", old: "OLD-004", status: "approved", tint: [60, 90, 160],
+    socialX: "@wulan", socialTiktok: "@wulan.sari" },
+  { name: "Dewi Anggraini", nick: "Dewi", socialInstagram: "@dewi", email: "dewi.anggraini@fritzyforce.test", line: "dewi.angg", domicile: "Bekasi", old: "OLD-005", status: "rejected", tint: [157, 24, 76], note: "Bukti pembayaran tidak terbaca, mohon unggah ulang." },
+  { name: "Bayu Pratama", nick: "Bayu", socialInstagram: "@bayu", email: "bayu.pratama@fritzyforce.test", line: "bayu.pratama", domicile: "Semarang", old: "OLD-006", status: "pending", tint: [90, 140, 90] },
 ];
 
 async function seedReRegistrations(reviewerId) {
@@ -140,7 +159,10 @@ async function seedReRegistrations(reviewerId) {
     }
     const proofPath = await uploadProof(s.tint);
     const { data: code, error } = await sb.rpc("submit_re_registration", {
-      p_full_name: s.name, p_email: s.email, p_line_id: s.line, p_proof_path: proofPath,
+      p_full_name: s.name, p_nickname: s.nick, p_email: s.email, p_line_id: s.line,
+      p_domicile: s.domicile, p_old_member_number: s.old, p_proof_path: proofPath,
+      p_social_x: s.socialX ?? "", p_social_instagram: s.socialInstagram ?? "", p_social_tiktok: s.socialTiktok ?? "",
+      p_address: s.address ?? "", p_birth_date: s.birthDate ?? null,
     });
     if (error) throw error;
 
@@ -148,9 +170,18 @@ async function seedReRegistrations(reviewerId) {
       const { data: number, error: nErr } = await sb.rpc("next_member_number");
       if (nErr) throw nErr;
       const { data: member, error: mErr } = await sb.from("members")
-        .insert({ member_number: number, source: "re_registration", full_name: s.name, email: s.email, line_id: s.line })
+        .insert({
+          member_number: number, source: "re_registration", full_name: s.name, nickname: s.nick, email: s.email,
+          line_id: s.line, domicile: s.domicile, old_member_number: s.old,
+          social_x: s.socialX ?? "", social_instagram: s.socialInstagram ?? "", social_tiktok: s.socialTiktok ?? "",
+          address: s.address ?? "", birth_date: s.birthDate ?? null,
+        })
         .select("id").single();
       if (mErr) throw mErr;
+      const { error: lErr } = await sb.from("legacy_members")
+        .update({ is_registered: true, member_id: member.id, registered_at: new Date().toISOString() })
+        .eq("old_member_number", s.old);
+      if (lErr) throw lErr;
       const { error: uErr } = await sb.from("re_registrations")
         .update({ status: "approved", member_id: member.id, reviewed_by: reviewerId, reviewed_at: new Date().toISOString() })
         .eq("code", code);
@@ -237,6 +268,7 @@ async function seedDues(reviewerId) {
 }
 
 const reviewerId = await seedAdmins();
+await seedLegacyMembers();
 await seedReRegistrations(reviewerId);
 await seedDues(reviewerId);
 console.log("Selesai.");

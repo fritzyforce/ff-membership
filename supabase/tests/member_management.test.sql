@@ -28,24 +28,24 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e2","role":"authenticated"}', true);
 
 select lives_ok($$select public.admin_update_member(current_setting('test.m1')::uuid,
-  'Member Satu Baru', 'Bandung', date '2001-05-14', 'Jl. Melati 12', '0812-1111-2222', 'm1.baru', '@m1', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$,
+  'Member Satu Baru', 'Satu', 'Bandung', date '2001-05-14', 'Jl. Melati 12', 'm1.baru', '@m1', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$,
   'admin bisa mengubah data anggota');
 select throws_ok($$select public.admin_update_member(current_setting('test.m1')::uuid,
-  '  ', '', null, '', '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'INVALID_NAME', 'nama kosong ditolak');
+  '  ', 'x', '', null, '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'INVALID_NAME', 'nama kosong ditolak');
 select throws_ok($$select public.admin_update_member(current_setting('test.m1')::uuid,
-  'A', '', null, '', '12345', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'INVALID_PHONE', 'nomor HP tidak valid ditolak');
+  'A', '', '', null, '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'INVALID_NICKNAME', 'nickname kosong ditolak');
 select throws_ok($$select public.admin_update_member(current_setting('test.m1')::uuid,
-  'A', '', current_date + 1, '', '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'INVALID_BIRTH_DATE', 'tanggal lahir di masa depan ditolak');
+  'A', 'A', '', current_date + 1, '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'INVALID_BIRTH_DATE', 'tanggal lahir di masa depan ditolak');
 select throws_ok($$select public.admin_update_member(current_setting('test.m1')::uuid,
-  'A', '', null, '', '', 'x', '', '', '', '2019-12')$$, 'P0001', 'INVALID_DUES_START', 'bulan awal iuran sebelum 2020 ditolak');
+  'A', 'A', '', null, '', 'x', '', '', '', '2019-12')$$, 'P0001', 'INVALID_DUES_START', 'bulan awal iuran sebelum 2020 ditolak');
 select throws_ok($$select public.admin_update_member(gen_random_uuid(),
-  'A', '', null, '', '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'NOT_FOUND', 'anggota tidak ditemukan');
+  'A', 'A', '', null, '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'P0001', 'NOT_FOUND', 'anggota tidak ditemukan');
 select lives_ok($$select public.admin_update_member(current_setting('test.m2')::uuid,
-  'Member Dua', '', null, '', '', 'm2', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'admin boleh mengosongkan No. HP & alamat');
+  'Member Dua', 'Dua', '', null, '', 'm2', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, 'admin boleh mengosongkan domisili & alamat');
 
 reset role;
-select is((select phone || '|' || line_id || '|' || birth_place from public.members where member_number = 'FF-701'),
-  '081211112222|m1.baru|Bandung', 'data tersimpan & No. HP dinormalisasi');
+select is((select nickname || '|' || line_id || '|' || domicile from public.members where member_number = 'FF-701'),
+  'Satu|m1.baru|Bandung', 'data tersimpan (nickname, ID Line, domisili)');
 select is((select display_name from public.profiles where member_id = current_setting('test.m1')::uuid),
   'Member Satu Baru', 'display_name akun ikut tersinkron saat nama diubah');
 select is((select count(*)::int from public.audit_log where action = 'member.updated' and entity_id = current_setting('test.m1')::uuid
@@ -68,7 +68,7 @@ select is((select details ->> 'note' from public.audit_log
 -- anggota yang di-revoke kehilangan akses walau sesinya masih ada
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e3","role":"authenticated"}', true);
 select is((select count(*)::int from public.members), 0, 'anggota revoked tidak bisa membaca datanya lagi (RLS)');
-select throws_ok($$select public.update_my_member_profile('Jl. X', '081234567890', 'x', '@x', '', '')$$,
+select throws_ok($$select public.update_my_member_profile('x', 'x', null, 'Jl. X', 'x', '@x', '', '')$$,
   '42501', 'FORBIDDEN', 'anggota revoked tidak bisa edit profil');
 select is(public.current_member_id(), null, 'current_member_id() = null untuk anggota revoked');
 
@@ -76,7 +76,7 @@ select is(public.current_member_id(), null, 'current_member_id() = null untuk an
 select throws_ok($$select public.admin_set_member_status(current_setting('test.m1')::uuid, 'active', '')$$,
   '42501', 'FORBIDDEN', 'anggota biasa tidak bisa mengubah status');
 select throws_ok($$select public.admin_update_member(current_setting('test.m1')::uuid,
-  'Hack', '', null, '', '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, '42501', 'FORBIDDEN', 'anggota biasa tidak bisa mengubah data anggota');
+  'Hack', 'H', '', null, '', 'x', '', '', '', to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'))$$, '42501', 'FORBIDDEN', 'anggota biasa tidak bisa mengubah data anggota');
 select throws_ok($$select * from public.admin_get_member_account(current_setting('test.m1')::uuid)$$,
   '42501', 'FORBIDDEN', 'anggota biasa tidak bisa melihat info akun');
 select is((select count(*)::int from public.audit_log), 0, 'anggota biasa tidak bisa membaca audit log');
@@ -132,7 +132,7 @@ select is((select string_agg(action, ',' order by action) from public.audit_log
   'semua aksi akun tercatat di audit log');
 
 -- tidak ada akses langsung untuk anon pada fungsi baru
-select ok(not has_function_privilege('anon', 'public.admin_update_member(uuid, text, text, date, text, text, text, text, text, text, text)', 'execute')
+select ok(not has_function_privilege('anon', 'public.admin_update_member(uuid, text, text, text, date, text, text, text, text, text, text)', 'execute')
       and not has_function_privilege('anon', 'public.admin_set_member_status(uuid, public.member_status, text)', 'execute')
       and not has_function_privilege('anon', 'public.superadmin_set_account_role(uuid, public.app_role)', 'execute')
       and not has_function_privilege('anon', 'public.admin_get_member_account(uuid)', 'execute')

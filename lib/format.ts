@@ -2,7 +2,6 @@ import type {
   Applicant,
   ApplicantStatus,
   DuesStatus,
-  Member,
   ReRegistrationStatus,
 } from "@/lib/types";
 
@@ -27,7 +26,7 @@ export function formatPeriod(period: string) {
 
 /**
  * Rentang bulan: "Oktober 2026" | "Oktober – Desember 2026" | "November 2026 – Januari 2027".
- * Dipakai untuk pembayaran yang menutup beberapa bulan.
+ * Dipakai untuk pembayaran yang mencakup beberapa bulan.
  */
 export function formatPeriodRange(from: string, to: string) {
   if (from === to) return formatPeriod(from);
@@ -52,7 +51,7 @@ export function formatDateLong(iso: string) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-export function birthLine(p: Pick<Member, "birthPlace" | "birthDate">) {
+export function birthLine(p: { birthPlace?: string; birthDate: string }) {
   const parts = [p.birthPlace, p.birthDate ? formatDateLong(p.birthDate) : ""].filter(Boolean);
   return parts.length ? parts.join(", ") : "—";
 }

@@ -43,7 +43,7 @@ function PaymentContent({ session }: { session: Session }) {
   const months = chosen ?? Math.min(Math.max(summary?.arrearsCount ?? 1, 1), MAX_MONTHS);
   const amount = (monthly ?? 0) * months;
 
-  // bulan apa saja yang akan tertutup: dihitung server (urut dari tunggakan paling awal)
+  // bulan apa saja yang akan dibayar: dihitung server (urut dari tunggakan paling awal)
   const [periods, setPeriods] = useState<string[] | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   useEffect(() => {
@@ -122,7 +122,7 @@ function PaymentContent({ session }: { session: Session }) {
                 </div>
               ) : periods ? (
                 <div className="text-body-sm">
-                  Menutup: <span className="text-gold-100">{periods.map(formatPeriod).join(", ")}</span>
+                  Bulan dibayar: <span className="text-gold-100">{periods.map(formatPeriod).join(", ")}</span>
                   {periods.length > 1 && (
                     <span className="text-caption ml-2">({formatPeriodRange(periods[0], periods[periods.length - 1])})</span>
                   )}

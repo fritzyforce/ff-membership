@@ -48,25 +48,31 @@ function layout(title: string, bodyHtml: string, cta?: { href: string; label: st
 export function reRegistrationEmail(d: ReRegistrationEmailData): EmailMessage {
   const name = esc(d.fullName);
   if (d.status === "approved") {
-    const link = `${d.siteUrl}/register/`;
+    // Halaman cek status membaca kode dari ?kode= dan langsung menampilkan hasilnya
+    // (nomor anggota + tombol Registrasi Akun dengan email pendaftar terisi).
+    const statusLink = `${d.siteUrl}/cek-status/?kode=${encodeURIComponent(d.code)}`;
+    const registerLink = `${d.siteUrl}/register/`;
     const number = d.memberNumber ? `<strong style="color:#f9e58e;">${esc(d.memberNumber)}</strong>` : "";
     return {
       subject: "Registrasi ulang disetujui — Fritzy Force",
       html: layout(
         "Registrasi ulang disetujui",
         `<p style="margin:0 0 12px;">Halo ${name},</p>
-         <p style="margin:0 0 12px;">Registrasi ulangmu (kode ${esc(d.code)}) sudah disetujui. Kamu kembali resmi menjadi anggota Fritzy Force.</p>
+         <p style="margin:0 0 12px;">Registrasi ulangmu sudah <strong style="color:#f9e58e;">disetujui</strong>. Kamu kembali resmi menjadi anggota Fritzy Force.</p>
+         <p style="margin:0 0 12px;">Kode pendaftaran: <strong style="color:#f9e58e;">${esc(d.code)}</strong></p>
          ${number ? `<p style="margin:0 0 12px;">Nomor anggota: ${number}</p>` : ""}
-         <p style="margin:0;">Buat akun dengan email ini untuk mengakses profil dan riwayat uang kas.</p>`,
-        { href: link, label: "Buat Akun" },
+         <p style="margin:0 0 12px;">Lihat status registrasi ulangmu lewat tombol di bawah. Setelah itu buat akun dengan email ini di <a href="${esc(registerLink)}" style="color:#f9e58e;">halaman registrasi akun</a>.</p>`,
+        { href: statusLink, label: "Cek Status Registrasi" },
       ),
       text: [
         `Halo ${d.fullName},`,
         "",
-        `Registrasi ulangmu (kode ${d.code}) sudah disetujui. Kamu kembali resmi menjadi anggota Fritzy Force.`,
+        "Registrasi ulangmu sudah disetujui. Kamu kembali resmi menjadi anggota Fritzy Force.",
+        `Kode pendaftaran: ${d.code}`,
         d.memberNumber ? `Nomor anggota: ${d.memberNumber}` : "",
         "",
-        `Buat akun dengan email ini: ${link}`,
+        `Cek status registrasi: ${statusLink}`,
+        `Buat akun dengan email ini: ${registerLink}`,
       ]
         .filter((l, i, a) => l !== "" || a[i - 1] !== "")
         .join("\n"),

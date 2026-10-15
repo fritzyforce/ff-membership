@@ -70,7 +70,7 @@ function ReRegistrationList() {
               className="input w-full md:w-[260px]"
               type="search"
               aria-label="Cari registrasi ulang"
-              placeholder="Cari nama / email / kode"
+              placeholder="Cari nama / email / kode / nomor lama"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -92,7 +92,7 @@ function ReRegistrationList() {
                   <th>Kode</th>
                   <th>Nama</th>
                   <th>Email</th>
-                  <th className="hidden xl:table-cell">ID Line</th>
+                  <th className="hidden xl:table-cell">Nomor Lama</th>
                   <th>Diajukan</th>
                   <th>Status</th>
                   <th aria-label="Aksi" />
@@ -117,7 +117,7 @@ function ReRegistrationList() {
                       </td>
                       <td className="whitespace-nowrap">{r.fullName}</td>
                       <td>{r.email}</td>
-                      <td className="hidden xl:table-cell">{r.lineId}</td>
+                      <td className="hidden whitespace-nowrap xl:table-cell">{r.oldMemberNumber ?? "—"}</td>
                       <td className="whitespace-nowrap">{formatDateShort(r.createdAt)}</td>
                       <td>
                         <Badge tone={s.badge} dot={r.status === "rejected"}>

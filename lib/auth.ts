@@ -17,8 +17,19 @@ import { getSupabase } from "@/lib/supabase/client";
 import type { MemberStatus, Role, Session } from "@/lib/types";
 
 export function isAdminRole(role: Role | undefined) {
-  return role === "admin" || role === "superadmin";
+  return role === "admin" || role === "admin_finance" || role === "superadmin";
 }
+
+/**
+ * Hanya admin_finance dan superadmin yang boleh approve/reject pembayaran uang kas dan registrasi ulang.
+ * Ini hanya untuk menyembunyikan tombol; penegakan sebenarnya ada di RPC database.
+ */
+export function canReviewFinance(role: Role | undefined) {
+  return role === "admin_finance" || role === "superadmin";
+}
+
+export const FINANCE_ONLY_NOTICE =
+  "Approve dan Reject hanya dapat dilakukan oleh Admin Finance atau Superadmin. Kamu bisa melihat data ini, tetapi tidak bisa mengubahnya.";
 
 /** Login ditolak karena email belum dikonfirmasi (UI menawarkan kirim ulang). */
 export class EmailNotConfirmedError extends DataError {}

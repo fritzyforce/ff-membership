@@ -37,7 +37,12 @@ const MEMBER_STATUS: Record<MemberStatus, { label: string; tone: "approved" | "p
 };
 
 const SOURCE_LABEL = { recruitment: "Rekrutmen", re_registration: "Registrasi Ulang" } as const;
-const ROLE_LABEL: Record<Role, string> = { member: "Member", admin: "Admin", superadmin: "Superadmin" };
+const ROLE_LABEL: Record<Role, string> = {
+  member: "Member",
+  admin: "Admin",
+  admin_finance: "Admin Finance",
+  superadmin: "Superadmin",
+};
 
 function useDebounced<T>(value: T, ms: number) {
   const [debounced, setDebounced] = useState(value);
@@ -283,10 +288,10 @@ function EditMemberForm({
 }) {
   const [v, setV] = useState<AdminMemberInput>({
     fullName: member.fullName,
-    birthPlace: member.birthPlace,
+    nickname: member.nickname,
+    domicile: member.domicile,
     birthDate: member.birthDate,
     address: member.address,
-    phone: member.phone,
     lineId: member.lineId,
     socialX: member.socialX,
     socialInstagram: member.socialInstagram,
@@ -303,6 +308,7 @@ function EditMemberForm({
     e.preventDefault();
     setError(null);
     if (!v.fullName.trim()) return setError("Nama lengkap wajib diisi.");
+    if (!v.nickname.trim()) return setError("Nickname wajib diisi.");
     if (!v.lineId.trim()) return setError("ID Line wajib diisi.");
     setBusy(true);
     try {
@@ -319,17 +325,17 @@ function EditMemberForm({
       <Field id="a-name" label="Nama Lengkap" required>
         <input id="a-name" className="input" value={v.fullName} onChange={set("fullName")} />
       </Field>
-      <Field id="a-place" label="Tempat Lahir">
-        <input id="a-place" className="input" value={v.birthPlace} onChange={set("birthPlace")} />
+      <Field id="a-nick" label="Nickname" required>
+        <input id="a-nick" className="input" value={v.nickname} onChange={set("nickname")} />
+      </Field>
+      <Field id="a-domicile" label="Domisili">
+        <input id="a-domicile" className="input" value={v.domicile} onChange={set("domicile")} />
       </Field>
       <Field id="a-birth" label="Tanggal Lahir">
         <input id="a-birth" className="input" type="date" value={v.birthDate} onChange={set("birthDate")} />
       </Field>
-      <Field id="a-addr" label="Alamat Domisili">
+      <Field id="a-addr" label="Alamat Lengkap">
         <textarea id="a-addr" className="input" rows={2} value={v.address} onChange={set("address")} />
-      </Field>
-      <Field id="a-phone" label="No. HP" help="Boleh dikosongkan; bila diisi format 08xxxxxxxxxx.">
-        <input id="a-phone" className="input" type="tel" value={v.phone} onChange={set("phone")} />
       </Field>
       <Field id="a-line" label="ID Line" required>
         <input id="a-line" className="input" value={v.lineId} onChange={set("lineId")} />
@@ -597,6 +603,7 @@ function SuperadminPanel({
           {!hasAccount && <option value="">Ubah Role Akun</option>}
           <option value="member">Role: Member</option>
           <option value="admin">Role: Admin</option>
+          <option value="admin_finance">Role: Admin Finance</option>
           <option value="superadmin">Role: Superadmin</option>
         </select>
 
@@ -632,7 +639,7 @@ function describe(e: AuditEntry): string {
     case "member.status_changed":
       return `Status ${d.from} → ${d.to}${d.note ? ` — ${d.note}` : ""}`;
     case "account.role_changed":
-      return `Role akun ${d.from} → ${d.to}`;
+      return `Role akun ${ROLE_LABEL[d.from as Role] ?? d.from} → ${ROLE_LABEL[d.to as Role] ?? d.to}`;
     case "account.active_changed":
       return d.active ? "Akun diaktifkan" : "Akun dinonaktifkan";
     case "account.password_reset_requested":
