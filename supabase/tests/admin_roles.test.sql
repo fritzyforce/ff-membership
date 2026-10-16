@@ -35,7 +35,7 @@ select throws_ok($$select public.approve_dues_payment(gen_random_uuid())$$,
   '42501', 'FORBIDDEN', 'admin biasa tidak bisa approve uang kas');
 select throws_ok($$select public.reject_dues_payment(gen_random_uuid(), 'x')$$,
   '42501', 'FORBIDDEN', 'admin biasa tidak bisa reject uang kas');
-select lives_ok($$select public.admin_add_legacy_members(array['RLS-002'])$$,
+select lives_ok($$select public.admin_add_legacy_members('[{"number":"RLS-002","prepaid":1}]'::jsonb)$$,
   'admin biasa tetap bisa mengelola data lain (nomor anggota lama)');
 
 -- ============================================================ superadmin

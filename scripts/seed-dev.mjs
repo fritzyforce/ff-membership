@@ -126,13 +126,46 @@ async function uploadProof(tint, folder = "re-registrations") {
 
 // Daftar nomor anggota lama (tabel legacy_members). OLD-001..OLD-006 dipakai contoh di bawah;
 // sisanya tetap "belum registrasi ulang" sehingga bisa dipakai menguji form /registrasi-ulang/.
+// prepaid_months = kelebihan bayar kas dari data lama: melunasi bulan SESUDAH bulan registrasi ulang.
+const LEGACY_PREPAID = { "OLD-003": 1, "OLD-009": 2 };
 const LEGACY_NUMBERS = Array.from({ length: 10 }, (_, i) => `OLD-${String(i + 1).padStart(3, "0")}`);
 
 async function seedLegacyMembers() {
-  const { error } = await sb.from("legacy_members")
-    .upsert(LEGACY_NUMBERS.map((old_member_number) => ({ old_member_number })), { onConflict: "old_member_number", ignoreDuplicates: true });
+  const { error } = await sb.from("legacy_members").upsert(
+    LEGACY_NUMBERS.map((old_member_number) => ({ old_member_number, prepaid_months: LEGACY_PREPAID[old_member_number] ?? 0 })),
+    { onConflict: "old_member_number", ignoreDuplicates: true },
+  );
   if (error) throw error;
-  console.log(`✓ nomor anggota lama  ${LEGACY_NUMBERS[0]} … ${LEGACY_NUMBERS.at(-1)}`);
+  // run ulang di DB yang sudah ada: perbarui kelebihan bayar untuk nomor yang belum registrasi ulang
+  for (const [number, months] of Object.entries(LEGACY_PREPAID)) {
+    const { error: uErr } = await sb.from("legacy_members").update({ prepaid_months: months })
+      .eq("old_member_number", number).eq("is_registered", false);
+    if (uErr) throw uErr;
+  }
+  console.log(`✓ nomor anggota lama  ${LEGACY_NUMBERS[0]} … ${LEGACY_NUMBERS.at(-1)}  (kelebihan bayar: ${JSON.stringify(LEGACY_PREPAID)})`);
+}
+
+/** Mirror approve_re_registration: pembayaran registrasi = kas bulan ini; kelebihan bayar = bulan berikutnya. */
+async function recordRegistrationDues(memberId, proofPath, oldNumber, reviewerId) {
+  const today = new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  const base = {
+    member_id: memberId, status: "paid", reviewed_by: reviewerId, reviewed_at: new Date().toISOString(),
+    paid_at: today, paid_on: today,
+  };
+  const insertPayment = async (row, periods) => {
+    const { data, error } = await sb.from("dues_payments").insert({ ...base, ...row }).select("id").single();
+    if (error) throw error;
+    const { error: mErr } = await sb.from("dues_payment_months")
+      .insert(periods.map((period) => ({ payment_id: data.id, member_id: memberId, period })));
+    if (mErr) throw mErr;
+  };
+  const cur = period(0);
+  await insertPayment({ amount: MONTHLY, proof_path: proofPath, source: "re_registration", period_from: cur, period_to: cur, months: 1 }, [cur]);
+  const prepaid = LEGACY_PREPAID[oldNumber] ?? 0;
+  if (prepaid > 0) {
+    const periods = monthsFrom(1, prepaid);
+    await insertPayment({ amount: MONTHLY * prepaid, proof_path: null, source: "legacy_credit", period_from: periods[0], period_to: periods.at(-1), months: prepaid }, periods);
+  }
 }
 
 /* ------------------------------------------------------------ re-registrations */
@@ -147,6 +180,8 @@ const SAMPLES = [
   { name: "Wulan Sari", nick: "Wulan", email: "wulan.sari@fritzyforce.test", line: "wulan.sari", domicile: "Depok", old: "OLD-004", status: "approved", tint: [60, 90, 160],
     socialX: "@wulan", socialTiktok: "@wulan.sari" },
   { name: "Dewi Anggraini", nick: "Dewi", socialInstagram: "@dewi", email: "dewi.anggraini@fritzyforce.test", line: "dewi.angg", domicile: "Bekasi", old: "OLD-005", status: "rejected", tint: [157, 24, 76], note: "Bukti pembayaran tidak terbaca, mohon unggah ulang." },
+  // approved dengan kelebihan bayar kas 2 bulan (OLD-009): kas bulan ini dari registrasi, 2 bulan berikutnya dari kelebihan bayar
+  { name: "Citra Lestari", nick: "Citra", socialInstagram: "@citra", email: "citra.lestari@fritzyforce.test", line: "citra.lestari", domicile: "Malang", old: "OLD-009", status: "approved", tint: [120, 80, 140] },
   { name: "Bayu Pratama", nick: "Bayu", socialInstagram: "@bayu", email: "bayu.pratama@fritzyforce.test", line: "bayu.pratama", domicile: "Semarang", old: "OLD-006", status: "pending", tint: [90, 140, 90] },
 ];
 
@@ -182,6 +217,7 @@ async function seedReRegistrations(reviewerId) {
         .update({ is_registered: true, member_id: member.id, registered_at: new Date().toISOString() })
         .eq("old_member_number", s.old);
       if (lErr) throw lErr;
+      await recordRegistrationDues(member.id, proofPath, s.old, reviewerId);
       const { error: uErr } = await sb.from("re_registrations")
         .update({ status: "approved", member_id: member.id, reviewed_by: reviewerId, reviewed_at: new Date().toISOString() })
         .eq("code", code);
@@ -215,10 +251,11 @@ const MONTHLY = 20000;
 // Model per-bulan: tiap pembayaran menutup `months` bulan berurutan mulai dari `from` (offset
 // dari bulan ini). `startOffset` = bulan pertama yang ditagih untuk anggota tsb.
 const DUES_SAMPLES = [
-  // Teguh: ditagih sejak 3 bulan lalu, sudah lunas 3 bulan + bulan ini sedang diverifikasi => tanpa tunggakan
+  // Teguh: ditagih sejak 3 bulan lalu, lunas 3 bulan; bulan ini ditutup pembayaran registrasi ulang dan bulan
+  // depan oleh kelebihan bayar data lama (OLD-003 = 1 bulan) => tanpa tunggakan; satu pembayaran lagi sedang diverifikasi
   { email: "teguh.prakoso@fritzyforce.test", startOffset: -3, items: [
     { from: -3, months: 3, status: "paid", tint: [74, 21, 75] },
-    { from: 0, months: 1, status: "processing", tint: [138, 76, 252] },
+    { from: 2, months: 1, status: "processing", tint: [138, 76, 252] },
   ] },
   // Wulan: ditagih sejak 3 bulan lalu; satu pembayaran ditolak lalu diajukan ulang untuk bulan pertama
   // (diverifikasi) => tunggakan 3 bulan berikutnya, pembayaran selanjutnya akan mulai dari situ
@@ -236,7 +273,9 @@ async function seedDues(reviewerId) {
   for (const sample of DUES_SAMPLES) {
     const { data: member } = await sb.from("members").select("id").eq("email", sample.email).maybeSingle();
     if (!member) continue;
-    const { count } = await sb.from("dues_payments").select("id", { count: "exact", head: true }).eq("member_id", member.id);
+    // hanya pembayaran yang diajukan anggota; pembayaran registrasi ulang sudah dicatat saat seed registrasi
+    const { count } = await sb.from("dues_payments").select("id", { count: "exact", head: true })
+      .eq("member_id", member.id).eq("source", "member");
     if (count) {
       console.log(`· skip   uang kas ${sample.email} (sudah ada)`);
       continue;

@@ -10,7 +10,7 @@ import { Badge, Loading, Notice } from "@/components/ui/primitives";
 import ProofCard from "@/components/ui/proof-card";
 import { FINANCE_ONLY_NOTICE, canReviewFinance } from "@/lib/auth";
 import { approveDues, getDues, rejectDues } from "@/lib/data/dues";
-import { DUES_STATUS, formatDateShort, formatPeriodRange, formatRupiah } from "@/lib/format";
+import { DUES_SOURCE, DUES_STATUS, formatDateShort, formatPeriodRange, formatRupiah } from "@/lib/format";
 import { useData } from "@/lib/hooks";
 import type { DuesPayment } from "@/lib/types";
 
@@ -143,9 +143,18 @@ function DetailBody({ item, canReview, onChanged }: { item: DuesPayment; canRevi
           <Info label="Periode" value={formatPeriodRange(item.periodFrom, item.periodTo)} />
           <Info label="Jumlah bulan" value={`${item.months} bulan`} />
           <Info label="Nominal" value={formatRupiah(item.amount)} />
+          <Info label="Asal pembayaran" value={DUES_SOURCE[item.source]} />
+          <Info label="Tanggal bayar" value={formatDateShort(item.paidOn)} />
           <Info label="Diajukan" value={formatDateTime(item.createdAt)} />
         </section>
-        <ProofCard path={item.proofPath} title="Bukti Pembayaran" />
+        {item.proofPath ? (
+          <ProofCard path={item.proofPath} title="Bukti Pembayaran" />
+        ) : (
+          <section className="card stack w-full gap-2 xl:w-[420px] xl:shrink-0">
+            <h2 className="text-h2 text-[18px]">Bukti Pembayaran</h2>
+            <p className="text-body-sm">Tidak ada bukti: ini kelebihan bayar kas dari data lama.</p>
+          </section>
+        )}
       </div>
 
       {processing && (

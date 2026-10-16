@@ -1,8 +1,8 @@
 /**
  * Daftar nomor anggota lama (admin) — Supabase.
  *
- * Tabel `legacy_members` berisi nomor anggota lama dan flag `is_registered`
- * (sudah registrasi ulang atau belum). Flag menjadi true saat admin APPROVE
+ * Tabel `legacy_members` berisi nomor anggota lama, kelebihan bayar kas (`prepaid_months`, dalam
+ * bulan) dan flag `is_registered` (sudah registrasi ulang atau belum). Flag menjadi true saat admin APPROVE
  * registrasi ulang yang memakai nomor itu. Form registrasi ulang hanya menerima
  * nomor yang ada di daftar ini dan belum registered (dicek ulang di server).
  */
@@ -22,6 +22,7 @@ function toDataError(error: { message?: string } | null, fallback: string): Data
 
 interface Row {
   old_member_number: string;
+  prepaid_months: number;
   is_registered: boolean;
   registered_at: string | null;
   created_at: string;
@@ -33,6 +34,7 @@ function fromRow(r: Row): LegacyMember {
   const member = Array.isArray(r.member) ? (r.member[0] ?? null) : r.member;
   return {
     oldMemberNumber: r.old_member_number,
+    prepaidMonths: r.prepaid_months,
     isRegistered: r.is_registered,
     registeredAt: r.registered_at,
     createdAt: r.created_at,
@@ -88,17 +90,32 @@ export async function getLegacyCounts(): Promise<LegacyCounts> {
 
 export interface AddLegacyResult {
   added: number;
+  /** Nomor yang sudah ada & belum registrasi ulang, kelebihan bayarnya diperbarui */
+  updated: number;
   duplicate: number;
   invalid: number;
 }
 
-/** Pisahkan teks tempelan (baris baru / koma / titik koma) menjadi daftar nomor. */
-export function parseLegacyNumbers(text: string): string[] {
-  return text.split(/[\n\r,;]+/).map((s) => s.trim()).filter(Boolean);
+export interface LegacyInputRow {
+  number: string;
+  /** Kelebihan bayar (bulan). Dikosongkan = tidak diubah (nomor baru: 0). */
+  prepaid?: string;
 }
 
-export async function addLegacyMembers(numbers: string[]): Promise<AddLegacyResult> {
-  const { data, error } = await getSupabase().rpc("admin_add_legacy_members", { p_numbers: numbers });
+/**
+ * Teks tempelan: satu nomor per baris, opsional diikuti kelebihan bayar (bulan) yang dipisah
+ * koma / titik koma / tab, mis. `OLD-001, 2` (bisa ditempel langsung dari Excel / Sheets).
+ */
+export function parseLegacyRows(text: string): LegacyInputRow[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.split(/[,;\t]/).map((s) => s.trim()))
+    .filter(([number]) => number)
+    .map(([number, prepaid]) => (prepaid ? { number, prepaid } : { number }));
+}
+
+export async function addLegacyMembers(rows: LegacyInputRow[]): Promise<AddLegacyResult> {
+  const { data, error } = await getSupabase().rpc("admin_add_legacy_members", { p_rows: rows });
   if (error) throw toDataError(error, "Gagal menambahkan nomor anggota lama.");
   return data as AddLegacyResult;
 }

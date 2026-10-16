@@ -115,6 +115,8 @@ export type OldMemberNumberStatus = "ok" | "not_found" | "registered" | "in_use"
 /** Baris daftar nomor anggota lama (admin). */
 export interface LegacyMember {
   oldMemberNumber: string;
+  /** Kelebihan bayar kas dari data lama, dalam bulan (0–12) */
+  prepaidMonths: number;
   isRegistered: boolean;
   registeredAt: string | null;
   /** Anggota hasil registrasi ulang yang memakai nomor ini */
@@ -123,6 +125,14 @@ export interface LegacyMember {
 }
 
 export type DuesStatus = "processing" | "paid" | "rejected";
+
+/**
+ * Asal pembayaran uang kas:
+ *  - member: anggota mengajukan lewat /akun/bayar
+ *  - re_registration: pembayaran registrasi ulang, dihitung sebagai kas bulan registrasi
+ *  - legacy_credit: kelebihan bayar kas dari data lama (tanpa bukti)
+ */
+export type DuesSource = "member" | "re_registration" | "legacy_credit";
 
 /** Pembayaran uang kas (data nyata dari Supabase). */
 export interface DuesPayment {
@@ -136,12 +146,18 @@ export interface DuesPayment {
   /** Rupiah */
   amount: number;
   status: DuesStatus;
-  /** Path bukti di bucket privat payment-proofs */
-  proofPath: string;
+  source: DuesSource;
+  /** Bulan-bulan (YYYY-MM, urut) yang dibayar pembayaran ini; kosong bila tidak dimuat */
+  periods: string[];
+  /** Path bukti di bucket privat payment-proofs; null untuk kelebihan bayar data lama */
+  proofPath: string | null;
   /** Terisi saat rejected */
   reviewNote: string;
+  /** Waktu approve / reject */
   reviewedAt: string | null;
-  /** Tanggal verifikasi (WIB), terisi saat paid */
+  /** TANGGAL BAYAR (WIB): kapan pembayaran dilakukan/diajukan */
+  paidOn: string;
+  /** TANGGAL APPROVE (WIB), terisi saat paid */
   paidAt: string | null;
   createdAt: string;
   /** Hanya ada pada query admin yang meng-embed anggota */

@@ -8,7 +8,7 @@ import {
   addLegacyMembers,
   getLegacyCounts,
   listLegacyMembers,
-  parseLegacyNumbers,
+  parseLegacyRows,
   type AddLegacyResult,
   type LegacyFilter,
 } from "@/lib/data/legacy-members";
@@ -117,6 +117,7 @@ function LegacyList() {
               <thead>
                 <tr>
                   <th>Nomor Anggota Lama</th>
+                  <th>Kelebihan Bayar Kas</th>
                   <th>Status</th>
                   <th>Anggota Baru</th>
                   <th>Registrasi Ulang</th>
@@ -125,7 +126,7 @@ function LegacyList() {
               <tbody>
                 {data.rows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="text-center">
+                    <td colSpan={5} className="text-center">
                       {counts?.total === 0 && !search && filter === "all"
                         ? "Daftar masih kosong. Klik Tambah Nomor untuk mengisi."
                         : "Tidak ada nomor yang cocok."}
@@ -136,6 +137,9 @@ function LegacyList() {
                   <tr key={r.oldMemberNumber}>
                     <td className="whitespace-nowrap font-semibold" style={{ color: "var(--gold-100)" }}>
                       {r.oldMemberNumber}
+                    </td>
+                    <td className="whitespace-nowrap">
+                      {r.prepaidMonths > 0 ? `${r.prepaidMonths} bulan` : "—"}
                     </td>
                     <td>
                       <Badge tone={r.isRegistered ? "approved" : "pending"}>
@@ -177,11 +181,11 @@ function AddForm({ onDone }: { onDone: () => void }) {
     e.preventDefault();
     setError(null);
     setResult(null);
-    const numbers = parseLegacyNumbers(text);
-    if (numbers.length === 0) return setError("Masukkan minimal satu nomor anggota lama.");
+    const rows = parseLegacyRows(text);
+    if (rows.length === 0) return setError("Masukkan minimal satu nomor anggota lama.");
     setBusy(true);
     try {
-      setResult(await addLegacyMembers(numbers));
+      setResult(await addLegacyMembers(rows));
       setText("");
       onDone();
     } catch (err) {
@@ -195,8 +199,8 @@ function AddForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} noValidate className="card stack mb-6 gap-4">
       <Field
         id="legacy-numbers"
-        label="Nomor anggota lama"
-        help="Satu nomor per baris (atau pisahkan dengan koma). Spasi dibuang, huruf dijadikan kapital, nomor yang sudah ada dilewati."
+        label="Nomor anggota lama dan kelebihan bayar kas"
+        help="Satu baris per anggota: NOMOR, kelebihan bayar dalam bulan (0–12; boleh dikosongkan = 0), mis. OLD-001, 2. Bisa ditempel dari Excel/Sheets. Spasi dibuang, huruf dijadikan kapital. Nomor yang sudah ada tetap ada; kelebihan bayarnya diperbarui hanya bila dicantumkan dan nomornya belum registrasi ulang."
       >
         <textarea
           id="legacy-numbers"
@@ -209,8 +213,8 @@ function AddForm({ onDone }: { onDone: () => void }) {
       {error && <Notice tone="error">{error}</Notice>}
       {result && (
         <Notice tone={result.invalid > 0 ? "error" : "success"}>
-          {result.added} nomor ditambahkan, {result.duplicate} sudah ada
-          {result.invalid > 0 ? `, ${result.invalid} dilewati karena formatnya tidak valid (hanya huruf, angka, . _ / -; maks. 30 karakter)` : ""}.
+          {result.added} nomor ditambahkan, {result.updated} kelebihan bayar diperbarui, {result.duplicate} tidak berubah
+          {result.invalid > 0 ? `, ${result.invalid} dilewati karena tidak valid (nomor: huruf, angka, . _ / -, maks. 30 karakter; kelebihan bayar: angka 0–12)` : ""}.
         </Notice>
       )}
       <button type="submit" className="btn btn-primary self-start" disabled={busy}>

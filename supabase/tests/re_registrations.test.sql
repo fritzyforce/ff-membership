@@ -1,6 +1,6 @@
 -- pgTAP: RLS + RPC registrasi ulang.  Jalankan: npm run db:test
 begin;
-select plan(62);
+select plan(68);
 
 -- ---------------------------------------------------------------- fixtures
 -- admin: didaftarkan di account_provisioning, profile dibuat trigger saat user dibuat
@@ -16,6 +16,8 @@ insert into auth.users (id, email) values
 -- daftar nomor anggota lama
 insert into public.legacy_members (old_member_number) values
   ('TST-001'), ('TST-002'), ('TST-003'), ('TST-004'), ('TST-005');
+-- TST-001 punya kelebihan bayar kas 2 bulan (dari data lama)
+update public.legacy_members set prepaid_months = 2 where old_member_number = 'TST-001';
 
 -- bukti yang "sudah diunggah" (sebagai postgres, melewati policy storage)
 insert into storage.objects (bucket_id, name) values
@@ -47,7 +49,7 @@ select ok(has_function_privilege('anon', 'public.submit_re_registration(text, te
   'anon punya EXECUTE pada submit_re_registration (jalur publik)');
 select ok(has_function_privilege('anon', 'public.check_old_member_number(text)', 'execute'),
   'anon punya EXECUTE pada check_old_member_number (dipakai form)');
-select ok(not has_function_privilege('anon', 'public.admin_add_legacy_members(text[])', 'execute'),
+select ok(not has_function_privilege('anon', 'public.admin_add_legacy_members(jsonb)', 'execute'),
   'anon tidak punya EXECUTE pada admin_add_legacy_members');
 select throws_ok($$select * from public.legacy_members$$, '42501', null,
   'anon tidak bisa membaca legacy_members');
@@ -130,7 +132,7 @@ select is((select count(*)::int from public.re_registrations), 0,
   'member biasa tidak melihat re_registrations (RLS)');
 select throws_ok($$select public.approve_re_registration(current_setting('test.rid')::uuid)$$,
   '42501', 'FORBIDDEN', 'member biasa tidak bisa approve');
-select throws_ok($$select public.admin_add_legacy_members(array['ZZ-1'])$$, '42501', 'FORBIDDEN',
+select throws_ok($$select public.admin_add_legacy_members('[{"number":"ZZ-1"}]'::jsonb)$$, '42501', 'FORBIDDEN',
   'member biasa tidak bisa menambah nomor anggota lama');
 select is((select count(*)::int from public.legacy_members), 0, 'member biasa tidak melihat legacy_members (RLS)');
 select throws_ok($$select public.reject_re_registration(current_setting('test.rid')::uuid, 'x')$$,
@@ -154,11 +156,23 @@ select throws_ok($$select public.reject_re_registration(current_setting('test.ri
 
 -- admin: daftar nomor anggota lama
 select cmp_ok((select count(*)::int from public.legacy_members), '>=', 5, 'admin melihat legacy_members (RLS)');
-select is(public.admin_add_legacy_members(array['x-100', ' x 101', 'X-100', 'bad!', '']),
-  '{"added": 2, "duplicate": 0, "invalid": 1}'::jsonb,
-  'tambah nomor lama: dinormalisasi, duplikat dalam daftar digabung, karakter aneh dihitung invalid');
-select is(public.admin_add_legacy_members(array['X-100', 'X101']),
-  '{"added": 0, "duplicate": 2, "invalid": 0}'::jsonb, 'nomor lama yang sudah ada dilewati');
+select is(public.admin_add_legacy_members('[{"number":"x-100"},{"number":" x 101","prepaid":2},{"number":"X-100"},
+  {"number":"bad!"},{"number":"X-102","prepaid":13},{"number":""}]'::jsonb),
+  '{"added": 2, "updated": 0, "duplicate": 0, "invalid": 2}'::jsonb,
+  'tambah nomor lama: dinormalisasi, duplikat digabung, karakter aneh & kelebihan bayar > 12 dihitung invalid');
+select is(public.admin_add_legacy_members('[{"number":"X-100"},{"number":"X101","prepaid":2},{"number":"X-100","prepaid":1}]'::jsonb),
+  '{"added": 0, "updated": 1, "duplicate": 1, "invalid": 0}'::jsonb,
+  'nomor yang sudah ada: kelebihan bayar diperbarui bila berubah, selebihnya dilewati');
+select is((select string_agg(old_member_number || '=' || prepaid_months, ',' order by old_member_number)
+           from public.legacy_members where old_member_number in ('X-100', 'X101')),
+  'X-100=1,X101=2', 'kelebihan bayar (bulan) tersimpan di legacy_members');
+
+-- uang kas: pembayaran registrasi = kas bulan registrasi; kelebihan bayar 2 bulan = 2 bulan berikutnya
+select is((select s.arrears_count from public.get_dues_summary((select id from public.members where email = 'umar@test.local')) s),
+  0, 'tunggakan 0: pembayaran registrasi ulang dihitung sebagai kas bulan registrasi');
+select is((select s.next_period from public.get_dues_summary((select id from public.members where email = 'umar@test.local')) s),
+  to_char((now() at time zone 'Asia/Jakarta') + interval '3 months', 'YYYY-MM'),
+  'bulan dibayar berikutnya = bulan registrasi + 1 + kelebihan bayar (2 bulan)');
 
 reset role;
 select is((select m.dues_start_period from public.members m join public.re_registrations r on r.member_id = m.id
@@ -170,6 +184,26 @@ select ok((select r.status = 'approved' and r.member_id is not null
            from public.re_registrations r where r.email = 'umar@test.local')
           and (select count(*) from public.members m where m.email = 'umar@test.local' and m.source = 're_registration') = 1,
   'approve: status, reviewer, & anggota tercatat konsisten');
+select ok((select d.status = 'paid' and d.months = 1 and d.proof_path is not null
+                  and d.period_from = to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM') and d.period_to = d.period_from
+                  and d.amount = public.dues_monthly_amount()
+                  and d.paid_on = (now() at time zone 'Asia/Jakarta')::date and d.paid_at is not null
+           from public.dues_payments d join public.members m on m.id = d.member_id
+           where m.email = 'umar@test.local' and d.source = 're_registration'),
+  'approve mencatat pembayaran registrasi sebagai uang kas bulan registrasi (tanggal bayar & tanggal approve terpisah)');
+select ok((select d.status = 'paid' and d.months = 2 and d.proof_path is null
+                  and d.period_from = to_char((now() at time zone 'Asia/Jakarta') + interval '1 month', 'YYYY-MM')
+                  and d.period_to = to_char((now() at time zone 'Asia/Jakarta') + interval '2 months', 'YYYY-MM')
+                  and d.amount = 2 * public.dues_monthly_amount()
+           from public.dues_payments d join public.members m on m.id = d.member_id
+           where m.email = 'umar@test.local' and d.source = 'legacy_credit'),
+  'kelebihan bayar 2 bulan melunasi 2 bulan setelah bulan registrasi (tanpa bukti)');
+select is((select array_agg(pm.period order by pm.period) from public.dues_payment_months pm
+            join public.members m on m.id = pm.member_id where m.email = 'umar@test.local' and pm.active),
+  array[to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'),
+        to_char((now() at time zone 'Asia/Jakarta') + interval '1 month', 'YYYY-MM'),
+        to_char((now() at time zone 'Asia/Jakarta') + interval '2 months', 'YYYY-MM')],
+  'tiga bulan tercatat dibayar: bulan registrasi + 2 bulan kelebihan bayar');
 select ok((select l.is_registered and l.registered_at is not null
                   and l.member_id = (select m.id from public.members m where m.email = 'umar@test.local')
            from public.legacy_members l where l.old_member_number = 'TST-001'),

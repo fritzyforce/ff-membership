@@ -7,15 +7,15 @@ import { RECRUITMENT_OPEN } from "@/lib/config";
 const STEPS = [
   {
     title: "Isi formulir pendaftaran",
-    body: "Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do eiusmod.",
+    body: "Isi formulir pendafataran yang disediakan dengan data yang lengkap.",
   },
   {
     title: "Verifikasi & bayar uang kas",
-    body: "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi.",
+    body: "Pendaftaran akan diverifikasi dan dilanjutkan pembayaran uang kas pertama.",
   },
   {
     title: "Aktivasi akun",
-    body: "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum.",
+    body: "Pendaftaran selesai, registrasi akun untuk akses profilmu.",
   },
 ];
 
@@ -33,8 +33,7 @@ export default function HomeView() {
             Fritzy Force
           </h1>
           <p className="text-body max-w-[300px] lg:max-w-[440px] lg:text-[18px] lg:leading-7">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor
-            incididunt ut labore et dolore magna aliqua.
+            Portal keanggotaan Fritzy Force. Fanbase Fritzy Rosmerian JKT48 Gen 12.
           </p>
           <div className="flex w-full max-w-[320px] flex-col gap-4 lg:mt-2 lg:max-w-none lg:flex-row lg:flex-wrap">
             <Link href="/registrasi-ulang/" className="btn btn-primary btn-block whitespace-nowrap lg:w-auto lg:px-8 lg:py-4">

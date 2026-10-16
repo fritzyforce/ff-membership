@@ -1,7 +1,7 @@
 # Setup pengiriman email (produksi, paket gratis)
 
 ## Jawaban singkat
-**Bisa, dan gratis** — tapi sebaiknya punya **domain sendiri**. Vercel tidak terlibat: email dikirim oleh
+**Bisa, dan gratis** — tapi sebaiknya punya **domain sendiri**. Hosting situs (Cloudflare/Vercel/dll.) tidak terlibat: email dikirim oleh
 **Supabase Auth** lewat server SMTP yang kamu pilih, jadi tidak peduli aplikasinya di-host di mana.
 
 > **Status saat ini:** *Confirm email* **menyala** — akun baru wajib mengonfirmasi email sebelum bisa login. Jadi SMTP sendiri
@@ -38,16 +38,16 @@ Perkiraan pemakaian: 1 email per akun baru + 1 per reset password → komunitas 
    - Sender email `noreply@domainmu.com` (harus di domain terverifikasi), Sender name `Fritzy Force`
 4. **Rate limits** (Authentication › Rate Limits): atur batas email/jam sesuai kebutuhan.
 5. **URL Configuration**:
-   - *Site URL* = URL produksi (mis. `https://namamu.vercel.app` atau domain sendiri).
-   - *Redirect URLs* = URL produksi + (opsional) pola preview Vercel, mis. `https://*-timmu.vercel.app/**`.
+   - *Site URL* = URL produksi (mis. `https://ff-membership.<akun>.workers.dev` atau domain sendiri).
+   - *Redirect URLs* = URL produksi + (opsional) pola URL preview hosting Anda.
    Tanpa ini tautan konfirmasi/reset **gagal** (redirect ditolak).
 6. **Template email**: salin isi `supabase/templates/confirmation.html` dan `recovery.html` ke
    *Authentication › Email Templates* (subjek: lihat `supabase/config.toml`). Alternatif: `supabase config push`
    (aktifkan blok `[auth.email.smtp]` di `config.toml` dan set `SMTP_PASS` di environment).
 7. **Konfirmasi email** (Authentication › Providers › Email): **Confirm email = ON**;
    password minimal 8 + wajib huruf besar/kecil/angka.
-8. **Vercel** → Settings › Environment Variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   (hanya dua ini — **jangan** menaruh service role key di Vercel).
+8. **Hosting (Cloudflare: build variables)**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   (hanya dua ini — **jangan** menaruh service role key di hosting).
 
 ## Cara menguji
 1. Buat akun uji lewat `/register/` dengan email anggota yang valid → muncul "Cek Email Kamu". Lokal: buka Mailpit

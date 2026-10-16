@@ -5,7 +5,7 @@
 import { getProofUrl, uploadProof } from "@/lib/data/proofs";
 import { DataError } from "@/lib/errors";
 import { getSupabase } from "@/lib/supabase/client";
-import type { DuesPayment, DuesStatus, DuesSummary } from "@/lib/types";
+import type { DuesPayment, DuesSource, DuesStatus, DuesSummary } from "@/lib/types";
 
 const ERROR_TEXT: Record<string, string> = {
   INVALID_AMOUNT: "Nominal harus kelipatan iuran bulanan (minimal 1 bulan).",
@@ -32,11 +32,14 @@ interface Row {
   months: number;
   amount: number;
   status: DuesStatus;
-  proof_path: string;
+  proof_path: string | null;
+  source: DuesSource;
   review_note: string;
   reviewed_at: string | null;
+  paid_on: string;
   paid_at: string | null;
   created_at: string;
+  periods?: { period: string; active: boolean }[];
   member?: { member_number: string; full_name: string; email: string } | null;
 }
 
@@ -49,9 +52,16 @@ function fromRow(r: Row): DuesPayment {
     months: r.months,
     amount: r.amount,
     status: r.status,
+    source: r.source,
+    // pembayaran yang ditolak membuka kembali bulannya (active = false) -> tampilkan semuanya
+    periods: (r.periods ?? [])
+      .filter((p) => p.active || r.status === "rejected")
+      .map((p) => p.period)
+      .sort(),
     proofPath: r.proof_path,
     reviewNote: r.review_note,
     reviewedAt: r.reviewed_at,
+    paidOn: r.paid_on,
     paidAt: r.paid_at,
     createdAt: r.created_at,
     member: r.member
@@ -59,6 +69,9 @@ function fromRow(r: Row): DuesPayment {
       : null,
   };
 }
+
+/** Semua kolom + daftar bulan yang dibayar (dues_payment_months) untuk rincian riwayat. */
+const WITH_PERIODS = "*, periods:dues_payment_months(period, active)";
 
 /* ------------------------------------------------------------------ */
 /* Anggota                                                              */
@@ -68,7 +81,7 @@ function fromRow(r: Row): DuesPayment {
 export async function listMyDues(): Promise<DuesPayment[]> {
   const { data, error } = await getSupabase()
     .from("dues_payments")
-    .select("*")
+    .select(WITH_PERIODS)
     .order("period_from", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw new DataError("Gagal memuat riwayat uang kas. Coba lagi beberapa saat.");
@@ -171,7 +184,7 @@ export async function getDues(id: string): Promise<DuesPayment | null> {
 export async function listDuesByMember(memberId: string): Promise<DuesPayment[]> {
   const { data, error } = await getSupabase()
     .from("dues_payments")
-    .select("*")
+    .select(WITH_PERIODS)
     .eq("member_id", memberId)
     .order("period_from", { ascending: false })
     .order("created_at", { ascending: false });

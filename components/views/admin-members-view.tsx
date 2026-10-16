@@ -511,7 +511,7 @@ function DuesPanel({ memberId, version }: { memberId: string; version: number })
               href={`/admin/uang-kas/detail/?id=${d.id}`}
               className={`btn btn-sm ${d.status === "processing" ? "btn-primary" : "btn-secondary"}`}
             >
-              {d.status === "processing" ? "Review" : "Detail"}
+              {d.status === "processing" ? "Review" : "Bukti"}
             </Link>
           )}
         />

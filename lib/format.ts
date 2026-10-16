@@ -1,6 +1,7 @@
 import type {
   Applicant,
   ApplicantStatus,
+  DuesSource,
   DuesStatus,
   ReRegistrationStatus,
 } from "@/lib/types";
@@ -95,6 +96,19 @@ export const RE_REGISTRATION_STATUS: Record<
   approved: { label: "Approved", badge: "approved" },
   rejected: { label: "Rejected", badge: "reject" },
 };
+
+export const DUES_SOURCE: Record<DuesSource, string> = {
+  member: "Pembayaran anggota",
+  re_registration: "Pembayaran registrasi ulang",
+  legacy_credit: "Kelebihan bayar kas lama",
+};
+
+/** "2026-10-11T07:03:00Z" -> "11 Okt 2026, 14.03" (jam lokal peramban) */
+export function formatDateTimeShort(iso: string | null) {
+  if (!iso) return "—";
+  const time = new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return `${formatDateShort(iso)}, ${time}`;
+}
 
 export const DUES_STATUS: Record<
   DuesStatus,

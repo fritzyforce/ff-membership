@@ -80,7 +80,7 @@ insert into public.account_provisioning (email, role, display_name)
 values ('nama@domain.com', 'admin', 'Nama Admin');   -- role: 'admin' | 'admin_finance' | 'superadmin'
 ```
 
-**Deploy preview ke Vercel + Supabase cloud (langkah demi langkah):** [docs/deploy-vercel-supabase.md](docs/deploy-vercel-supabase.md)
+**Deploy ke Supabase cloud + Cloudflare (langkah demi langkah):** [docs/deploy-supabase-cloudflare.md](docs/deploy-supabase-cloudflare.md)
 
 ### Checklist sebelum produksi
 Beberapa pengaturan hanya ada di `supabase/config.toml` (lokal) — **di project cloud harus diset manual**:
@@ -89,7 +89,7 @@ Beberapa pengaturan hanya ada di `supabase/config.toml` (lokal) — **di project
 - **SMTP sendiri** (SMTP bawaan Supabase sangat terbatas) + atur rate limit email; pertimbangkan CAPTCHA (Turnstile) di form publik.
 - Terapkan migrasi: `supabase link` lalu `supabase db push`. Jangan jalankan `db:seed` ke produksi (script menolak host non-lokal).
 - Buat akun admin pertama lewat `account_provisioning` (lihat atas); ganti semua password dev.
-- **Setup email produksi (SMTP gratis, Vercel):** ikuti [docs/email-setup.md](docs/email-setup.md). Tanpa SMTP sendiri, konfirmasi email, lupa password, dan email approve registrasi ulang tidak akan terkirim ke anggota. Deploy juga Edge Function `send-status-email`.
+- **Setup email produksi (SMTP gratis):** ikuti [docs/email-setup.md](docs/email-setup.md). Tanpa SMTP sendiri, konfirmasi email, lupa password, dan email approve registrasi ulang tidak akan terkirim ke anggota. Deploy juga Edge Function `send-status-email`.
 
 ## Role staf
 | Role | Bisa |
@@ -120,6 +120,11 @@ Detail (`/admin/members/detail/?id=`):
 **Aturan:** iuran **Rp 20.000 per bulan** (`app_settings.dues_monthly_amount`, ubah lewat SQL/dashboard). Anggota membayar
 **kelipatan Rp 20.000** (minimal 1 bulan); tiap kelipatan = 1 bulan.
 - **Mulai ditagih** dari bulan registrasi / registrasi ulang (`members.dues_start_period`, WIB — bulan pengajuan, bukan bulan approve).
+- **Pembayaran registrasi ulang = uang kas bulan registrasi.** Saat admin Approve, sistem mencatat pembayaran `paid` (asal *Pembayaran registrasi ulang*,
+  memakai bukti yang sama) untuk bulan pengajuan, jadi bulan itu **tidak** dihitung tunggakan (mis. registrasi Oktober → Oktober lunas).
+- **Kelebihan bayar kas lama** (`legacy_members.prepaid_months`, dalam bulan) melunasi bulan **sesudah** bulan registrasi: 1 bulan → November,
+  2 bulan → November + Desember, dst. (maks. 12). Tercatat sebagai pembayaran `paid` asal *Kelebihan bayar kas lama* (tanpa bukti).
+  Diisi admin di menu **Nomor Anggota Lama** (`NOMOR, jumlah bulan` per baris); bisa diperbarui selama nomornya belum registrasi ulang.
 - Anggota **tidak memilih periode**. Pembayaran otomatis dihitung untuk **bulan yang belum dibayar paling awal** lebih dulu, jadi tunggakan
   dibayar berurutan dari yang tertua; kelebihan dihitung untuk **bulan ke depan** (maks. 12 bulan dari bulan berjalan).
   Contoh: ditagih sejak Juli, belum bayar, sekarang Oktober → bayar Rp 60.000 = bulan dibayar Juli–September; Rp 100.000 = Juli–November.
@@ -138,7 +143,9 @@ Keamanan: anggota hanya mengunggah ke folder `dues/<id-anggota>/` miliknya dan h
 RPC (`submit_dues_payment`, `approve_dues_payment`, `reject_dues_payment`); alokasi bulan dihitung & dikunci di database (satu bulan
 hanya bisa dibayar oleh satu pembayaran aktif; pengajuan per anggota diserialkan).
 
-> Catatan: bukti pembayaran saat **registrasi ulang** belum dicatat sebagai uang kas bulan pertama (form-nya tidak mengisi nominal).
+**Riwayat uang kas** (Akun Saya & detail anggota di admin): kolom **Tanggal Bayar** (kapan dibayar/diajukan) dipisah dari **Tanggal Approve**
+(kapan diverifikasi admin; "Ditolak …" / "Menunggu" bila belum), dan tiap baris punya tombol **Rincian**: asal pembayaran, bulan-bulan yang
+dibayar, nominal, kedua tanggal, status, dan catatan penolakan. Nominal pembayaran registrasi ulang dicatat sebesar iuran 1 bulan.
 
 ## Kode pendaftaran dummy (untuk `/cek-status/`)
 | Kode | Status |
@@ -195,7 +202,7 @@ Definisi: `supabase/migrations/20261011…_re_registrations.sql` dan `20261017�
 > Catatan: `check_old_member_number` bisa dipanggil publik (agar form memberi umpan balik), jadi daftar nomor lama secara teori bisa
 > ditebak satu per satu. Pertimbangkan CAPTCHA/rate limit di form publik sebelum produksi.
 
-Data contoh (`db:seed`): nomor lama `OLD-001`…`OLD-010`; 3 pending, 2 approved, 1 rejected — kodenya tercetak di output seed.
+Data contoh (`db:seed`): nomor lama `OLD-001`…`OLD-010` (`OLD-003` kelebihan bayar 1 bulan, `OLD-009` 2 bulan); 3 pending, 3 approved, 1 rejected — kodenya tercetak di output seed.
 `OLD-007`…`OLD-010` masih bebas untuk menguji form.
 
 ## Alur rekrutmen baru (masih dummy)
@@ -224,7 +231,7 @@ Reset data dummy (bukan data Supabase): tombol **Reset data dummy** di sidebar a
 Halaman detail memakai query param (`?id=`) agar tetap kompatibel dengan static export saat data sudah dinamis.
 
 ## Deploy
-Sama seperti `fritzyforce-nextjs`: `npm run deploy:workers` / `npm run deploy:pages` (Cloudflare), Vercel, atau Netlify (`netlify.toml`).
+Sama seperti `fritzyforce-nextjs`: `npm run deploy:workers` / `npm run deploy:pages` (Cloudflare), Vercel, atau Netlify (`netlify.toml`). Panduan lengkap bersama Supabase: [docs/deploy-supabase-cloudflare.md](docs/deploy-supabase-cloudflare.md).
 
 ## Pengaturan sementara
 - **Join Us (pendaftaran anggota baru) ditutup**: `RECRUITMENT_OPEN = false` di `lib/config.ts`. Tombol di homepage nonaktif dan
