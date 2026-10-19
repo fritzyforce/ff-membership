@@ -1,6 +1,6 @@
 -- pgTAP: RLS + RPC registrasi ulang.  Jalankan: npm run db:test
 begin;
-select plan(68);
+select plan(76);
 
 -- ---------------------------------------------------------------- fixtures
 -- admin: didaftarkan di account_provisioning, profile dibuat trigger saat user dibuat
@@ -16,6 +16,10 @@ insert into auth.users (id, email) values
 -- daftar nomor anggota lama
 insert into public.legacy_members (old_member_number) values
   ('TST-001'), ('TST-002'), ('TST-003'), ('TST-004'), ('TST-005');
+-- display name Line (pencarian nomor lewat display name); 'Kembar' sengaja dipakai dua anggota
+insert into public.legacy_members (old_member_number) values ('TST-006');
+update public.legacy_members set line_display_name = 'Budi Santoso Line' where old_member_number = 'TST-004';
+update public.legacy_members set line_display_name = 'Kembar' where old_member_number in ('TST-005', 'TST-006');
 -- TST-001 punya kelebihan bayar kas 2 bulan (dari data lama)
 update public.legacy_members set prepaid_months = 2 where old_member_number = 'TST-001';
 
@@ -92,6 +96,16 @@ select throws_ok($$select public.submit_re_registration('Umar Dua', 'U2', 'umar@
 select is(public.check_old_member_number(' tst-001'), 'in_use', 'nomor lama yang sedang diajukan -> in_use (spasi/huruf kecil ditoleransi)');
 select is(public.check_old_member_number('TST-002'), 'ok', 'nomor lama belum dipakai -> ok');
 select is(public.check_old_member_number('TST-404'), 'not_found', 'nomor lama tidak ada di daftar -> not_found');
+select is((select r.old_member_number from public.resolve_old_member_number('  budi   SANTOSO line ') r), 'TST-004',
+  'display name Line dikenali (huruf besar/kecil & spasi ganda diabaikan)');
+select is(public.check_old_member_number('kembar'), 'ambiguous', 'display name yang cocok >1 anggota -> ambiguous (hubungi admin)');
+select is(public.check_old_member_number('Nama Tidak Ada'), 'not_found', 'display name tidak dikenal -> not_found');
+select throws_ok($$select public.submit_re_registration('Budi', 'B', 'budi@test.local', 'b', 'Jakarta', 'Kembar',
+  're-registrations/22222222-2222-4222-8222-222222222222.png', '@b')$$, 'P0001', 'OLD_NUMBER_AMBIGUOUS',
+  'submit dengan display name ambigu ditolak');
+select lives_ok($$select public.submit_re_registration('Budi Santoso', 'Budi', 'dispname@test.local', 'budi.line', 'Jakarta', 'budi santoso line',
+  're-registrations/66666666-6666-4666-8666-666666666666.png', '@budi')$$,
+  'submit memakai display name Line (bukan nomor) berhasil');
 select throws_ok($$select public.submit_re_registration('Budi', 'B', 'budi@test.local', 'b', 'Jakarta', 'TST-404',
   're-registrations/22222222-2222-4222-8222-222222222222.png')$$, 'P0001', 'OLD_NUMBER_NOT_FOUND',
   'nomor lama yang tidak ada di daftar ditolak');
@@ -120,6 +134,8 @@ select is((select count(*)::int from public.get_re_registration_status('RU-ZZZZ-
 
 reset role;
 select set_config('test.rid', (select id::text from public.re_registrations where email = 'umar@test.local'), true);
+select is((select old_member_number from public.re_registrations where email = 'dispname@test.local'), 'TST-004',
+  'pengajuan lewat display name menyimpan nomor anggota lama kanonik (TST-004)');
 select is((select status::text from public.re_registrations where email = 'umar@test.local'), 'pending',
   'pengajuan baru berstatus pending');
 
@@ -163,6 +179,10 @@ select is(public.admin_add_legacy_members('[{"number":"x-100"},{"number":" x 101
 select is(public.admin_add_legacy_members('[{"number":"X-100"},{"number":"X101","prepaid":2},{"number":"X-100","prepaid":1}]'::jsonb),
   '{"added": 0, "updated": 1, "duplicate": 1, "invalid": 0}'::jsonb,
   'nomor yang sudah ada: kelebihan bayar diperbarui bila berubah, selebihnya dilewati');
+select is(public.admin_add_legacy_members('[{"number":"X-100","line_name":"Orang X"}]'::jsonb),
+  '{"added": 0, "updated": 1, "duplicate": 0, "invalid": 0}'::jsonb, 'impor mengisi display name Line pada nomor yang ada');
+select is((select line_display_name from public.legacy_members where old_member_number = 'X-100'), 'Orang X',
+  'display name Line tersimpan');
 select is((select string_agg(old_member_number || '=' || prepaid_months, ',' order by old_member_number)
            from public.legacy_members where old_member_number in ('X-100', 'X101')),
   'X-100=1,X101=2', 'kelebihan bayar (bulan) tersimpan di legacy_members');

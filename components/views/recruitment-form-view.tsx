@@ -54,8 +54,7 @@ function RecruitmentClosed() {
         <Logo size={96} />
         <h1 className="text-h1 text-[26px]">Pendaftaran Belum Dibuka</h1>
         <p className="text-body">
-          Pendaftaran anggota baru sedang ditutup sementara. Lorem ipsum dolor sit amet, consectetur
-          adipiscing elit.
+          Pendaftaran anggota baru sedang ditutup sementara.
         </p>
         <div className="flex w-full max-w-[320px] flex-col gap-3">
           <Link href="/registrasi-ulang/" className="btn btn-primary btn-block">
@@ -118,10 +117,8 @@ function RecruitmentForm() {
         {/* Kolom info — desktop */}
         <aside className="hidden flex-col gap-5 lg:flex">
           <Logo size={88} />
-          <h2 className="text-h1 text-[30px]">Gabung jadi anggota Fritzy Force</h2>
+          <h2 className="text-h1 text-[30px]">Bergabung jadi anggota Fritzy Force</h2>
           <p className="text-body">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-            incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.
           </p>
           <div className="card-flat stack gap-[10px]">
             <div className="text-caption">Yang perlu disiapkan</div>
@@ -136,11 +133,6 @@ function RecruitmentForm() {
           onSubmit={onSubmit}
           className="flex flex-col gap-[18px] px-6 pb-8 pt-1 lg:card lg:max-w-[760px] lg:gap-5 lg:p-6"
         >
-          <p className="text-body-sm lg:hidden">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Kolom bertanda{" "}
-            <span className="field-required">*</span> wajib diisi.
-          </p>
-
           <Field id="f-fullName" label="Nama Lengkap" required error={errors.fullName}>
             <input className="input" type="text" placeholder="Sesuai identitas resmi" autoComplete="name" {...bind("fullName")} />
           </Field>

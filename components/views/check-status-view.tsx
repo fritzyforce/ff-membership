@@ -120,8 +120,7 @@ function StatusBody({ applicant }: { applicant: Applicant }) {
     case "pending":
       return (
         <StatusHeader applicant={applicant} greeting="Halo">
-          Pendaftaranmu sedang direview admin. Lorem ipsum dolor sit amet, consectetur
-          adipiscing elit, sed do eiusmod tempor incididunt.
+          Pendaftaranmu sedang direview admin.
         </StatusHeader>
       );
     case "pre_approved":
@@ -130,8 +129,7 @@ function StatusBody({ applicant }: { applicant: Applicant }) {
       return (
         <>
           <StatusHeader applicant={applicant} greeting="Halo">
-            Bukti pembayaran sudah kami terima dan sedang diverifikasi admin. Lorem ipsum dolor
-            sit amet, consectetur adipiscing elit.
+            Bukti pembayaran sudah kami terima dan sedang diverifikasi admin.
           </StatusHeader>
           <div className="card-flat row items-center justify-between gap-3">
             <span className="text-body-sm">Bukti bayar</span>
@@ -145,8 +143,7 @@ function StatusBody({ applicant }: { applicant: Applicant }) {
       return (
         <>
           <StatusHeader applicant={applicant} greeting="Halo">
-            Mohon maaf, pendaftaranmu belum dapat kami terima. Lorem ipsum dolor sit amet,
-            consectetur adipiscing elit.
+            Mohon maaf, pendaftaranmu belum dapat kami terima.
           </StatusHeader>
           {applicant.reviewNote && (
             <div className="card-flat stack gap-2">

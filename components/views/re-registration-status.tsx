@@ -58,7 +58,7 @@ export default function ReRegistrationStatusCard({
         </h1>
         <div className="text-body-sm">
           {data.status === "pending" &&
-            "Registrasi ulangmu sedang direview admin. Lorem ipsum dolor sit amet, consectetur adipiscing elit."}
+            "Registrasi ulangmu sedang direview admin."}
           {data.status === "approved" &&
             "Registrasi ulangmu disetujui. Kamu kembali resmi menjadi anggota Fritzy Force."}
           {data.status === "rejected" &&

@@ -27,7 +27,9 @@ const ERROR_TEXT: Record<string, string> = {
   INVALID_BIRTH_DATE: "Tanggal lahir tidak valid.",
   INVALID_OLD_NUMBER: "Nomor anggota lama wajib diisi.",
   OLD_NUMBER_NOT_FOUND:
-    "Nomor anggota lama tidak ditemukan di daftar. Periksa kembali penulisannya atau hubungi admin.",
+    "Nomor anggota lama tidak ditemukan. Coba masukkan display name Line (bukan ID Line). Jika masih terjadi kesalahan, silakan hubungi admin.",
+  OLD_NUMBER_AMBIGUOUS:
+    "Display name Line itu cocok dengan lebih dari satu anggota lama. Silakan hubungi admin.",
   OLD_NUMBER_ALREADY_REGISTERED: "Nomor anggota lama ini sudah melakukan registrasi ulang.",
   OLD_NUMBER_IN_USE:
     "Nomor anggota lama ini sedang dipakai pada pengajuan registrasi ulang lain yang menunggu review.",
@@ -122,14 +124,21 @@ export interface ReRegistrationInput {
   birthDate: string;
 }
 
+export interface OldNumberCheck {
+  status: OldMemberNumberStatus;
+  /** Nomor anggota lama hasil pencarian (dari nomor ATAU display name Line); null bila tidak ketemu */
+  number: string | null;
+}
+
 /**
- * Cek cepat nomor anggota lama untuk umpan balik di form. Server mengecek ulang
- * saat submit (`submit_re_registration`), jadi hasil ini hanya panduan.
+ * Cek cepat isian "nomor anggota lama" (boleh nomor atau display name Line) untuk umpan balik di form.
+ * Server mengecek ulang saat submit (`submit_re_registration`), jadi hasil ini hanya panduan.
  */
-export async function checkOldMemberNumber(number: string): Promise<OldMemberNumberStatus> {
-  const { data, error } = await getSupabase().rpc("check_old_member_number", { p_number: number });
+export async function checkOldMemberNumber(input: string): Promise<OldNumberCheck> {
+  const { data, error } = await getSupabase().rpc("resolve_old_member_number", { p_input: input });
   if (error) throw toDataError(error);
-  return data as OldMemberNumberStatus;
+  const row = (data as { status: OldMemberNumberStatus; old_member_number: string | null }[] | null)?.[0];
+  return { status: row?.status ?? "not_found", number: row?.old_member_number ?? null };
 }
 
 /**

@@ -25,6 +25,7 @@ const NAV = [
   { href: "/admin/registrasi-ulang/", label: "Registrasi Ulang", Icon: IconUserCheck },
   { href: "/admin/anggota-lama/", label: "Nomor Anggota Lama", Icon: IconFile },
   { href: "/admin/uang-kas/", label: "Uang Kas", Icon: IconWallet },
+  { href: "/admin/staff/", label: "Akun Staf", Icon: IconUserCheck, superadminOnly: true },
 ];
 
 /** Shell admin (artboard Admin*): sidebar 240px di desktop, top bar di mobile. */
@@ -50,7 +51,7 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
     await resetDummyData();
   };
 
-  const nav = NAV.map(({ href, label, Icon }) => (
+  const nav = NAV.filter((n) => !n.superadminOnly || session.role === "superadmin").map(({ href, label, Icon }) => (
     <Link
       key={href}
       href={href}

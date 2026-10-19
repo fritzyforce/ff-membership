@@ -41,7 +41,9 @@ const EMPTY: Values = {
 };
 
 const OLD_NUMBER_PROBLEM: Record<Exclude<OldMemberNumberStatus, "ok">, string> = {
-  not_found: "Nomor anggota lama tidak ditemukan di daftar. Periksa kembali penulisannya.",
+  not_found:
+    "Nomor anggota tidak ditemukan. Coba masukkan display name Line (bukan ID Line). Jika masih terjadi kesalahan, silakan hubungi admin.",
+  ambiguous: "Display name Line itu cocok dengan lebih dari satu anggota lama. Silakan hubungi admin.",
   registered: "Nomor anggota lama ini sudah melakukan registrasi ulang.",
   in_use: "Nomor anggota lama ini sedang dipakai pada pengajuan lain yang menunggu review.",
 };
@@ -87,7 +89,7 @@ export default function ReRegistrationView() {
   const router = useRouter();
   const [values, setValues] = useState<Values>(EMPTY);
   // hasil cek nomor anggota lama untuk nilai `checked` (null = belum / sedang dicek)
-  const [oldCheck, setOldCheck] = useState<{ value: string; status: OldMemberNumberStatus } | null>(null);
+  const [oldCheck, setOldCheck] = useState<{ value: string; status: OldMemberNumberStatus; number: string | null } | null>(null);
   const checkSeq = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Errors>({});
@@ -111,9 +113,9 @@ export default function ReRegistrationView() {
     if (!value) return;
     const seq = ++checkSeq.current;
     try {
-      const status = await checkOldMemberNumber(value);
+      const { status, number } = await checkOldMemberNumber(value);
       if (seq !== checkSeq.current) return;
-      setOldCheck({ value, status });
+      setOldCheck({ value, status, number });
       setErrors((x) => ({
         ...x,
         oldMemberNumber: status === "ok" ? undefined : OLD_NUMBER_PROBLEM[status],
@@ -148,10 +150,6 @@ export default function ReRegistrationView() {
         <aside className="hidden flex-col gap-5 lg:flex">
           <Logo size={88} />
           <h2 className="text-h1 text-[30px]">Registrasi ulang anggota lama</h2>
-          <p className="text-body">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
-            incididunt ut labore et dolore magna aliqua.
-          </p>
           <QrisCard />
         </aside>
 
@@ -196,15 +194,15 @@ export default function ReRegistrationView() {
             required
             help={
               oldCheck?.status === "ok" && oldCheck.value === values.oldMemberNumber.trim()
-                ? "Nomor anggota lama ditemukan dan belum registrasi ulang."
-                : "Nomor anggota lamamu sebelum registrasi ulang ini."
+                ? `Ditemukan: nomor anggota lama ${oldCheck.number}. Belum registrasi ulang.`
+                : "Isi nomor anggota lamamu. Jika nomor tidak ditemukan, coba masukkan display name Line (bukan ID Line). Jika masih terjadi kesalahan, silakan hubungi admin."
             }
             error={errors.oldMemberNumber}
           >
             <input
               className="input"
               type="text"
-              placeholder="Nomor anggota lama"
+              placeholder="Nomor anggota lama atau display name Line"
               autoComplete="off"
               {...bind("oldMemberNumber")}
               onBlur={verifyOldNumber}

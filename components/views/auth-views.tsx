@@ -27,7 +27,7 @@ function homeFor(session: Session) {
   return isAdminRole(session.role) ? "/admin/members/" : "/akun/";
 }
 
-function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <PageTopbar title="" backHref="/" />
@@ -35,7 +35,7 @@ function AuthShell({ title, subtitle, children }: { title: string; subtitle: str
         <Logo size={64} />
         <div className="stack gap-1">
           <h1 className="text-h1 text-[26px]">{title}</h1>
-          <p className="text-body-sm">{subtitle}</p>
+          {subtitle && <p className="text-body-sm">{subtitle}</p>}
         </div>
         {children}
       </main>
@@ -120,7 +120,7 @@ export function LoginView() {
   };
 
   return (
-    <AuthShell title="Masuk" subtitle="Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do.">
+    <AuthShell title="Masuk">
       <form noValidate onSubmit={onSubmit} className="stack gap-4">
         <Field id="l-email" label="Email">
           <input id="l-email" className="input" type="email" placeholder="Email akun kamu" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />

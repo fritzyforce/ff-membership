@@ -23,6 +23,7 @@ function toDataError(error: { message?: string } | null, fallback: string): Data
 interface Row {
   old_member_number: string;
   prepaid_months: number;
+  line_display_name: string;
   is_registered: boolean;
   registered_at: string | null;
   created_at: string;
@@ -35,6 +36,7 @@ function fromRow(r: Row): LegacyMember {
   return {
     oldMemberNumber: r.old_member_number,
     prepaidMonths: r.prepaid_months,
+    lineDisplayName: r.line_display_name,
     isRegistered: r.is_registered,
     registeredAt: r.registered_at,
     createdAt: r.created_at,
@@ -62,7 +64,7 @@ export async function listLegacyMembers({ page, pageSize, filter, query }: Legac
 
   // buang karakter yang punya arti khusus di sintaks filter PostgREST / LIKE
   const term = query.replace(/[%_\\",()*]/g, " ").trim();
-  if (term) q = q.ilike("old_member_number", `%${term}%`);
+  if (term) q = q.or(`old_member_number.ilike."%${term}%",line_display_name.ilike."%${term}%"`);
 
   const { data, error, count } = await q;
   if (error) throw new DataError("Gagal memuat daftar nomor anggota lama.");
@@ -100,18 +102,28 @@ export interface LegacyInputRow {
   number: string;
   /** Kelebihan bayar (bulan). Dikosongkan = tidak diubah (nomor baru: 0). */
   prepaid?: string;
+  /** Display name Line. Dikosongkan = tidak diubah. */
+  line_name?: string;
 }
 
 /**
- * Teks tempelan: satu nomor per baris, opsional diikuti kelebihan bayar (bulan) yang dipisah
- * koma / titik koma / tab, mis. `OLD-001, 2` (bisa ditempel langsung dari Excel / Sheets).
+ * Teks tempelan: satu baris per anggota, `NOMOR, kelebihan bayar (bulan), display name Line`, dipisah
+ * koma / titik koma / tab (bisa ditempel langsung dari Excel / Sheets). Kolom ke-2 dan ke-3 opsional;
+ * kolom ke-3 mengambil sisa baris, jadi display name boleh mengandung koma. Contoh: `OLD-001, 2, Budi Santoso`
+ * atau (tanpa kelebihan bayar) `OLD-002, , Siti Aminah`.
  */
 export function parseLegacyRows(text: string): LegacyInputRow[] {
   return text
     .split(/\r?\n/)
     .map((line) => line.split(/[,;\t]/).map((s) => s.trim()))
     .filter(([number]) => number)
-    .map(([number, prepaid]) => (prepaid ? { number, prepaid } : { number }));
+    .map(([number, prepaid, ...rest]) => {
+      const row: LegacyInputRow = { number };
+      if (prepaid) row.prepaid = prepaid;
+      const lineName = rest.join(", ").trim();
+      if (lineName) row.line_name = lineName;
+      return row;
+    });
 }
 
 export async function addLegacyMembers(rows: LegacyInputRow[]): Promise<AddLegacyResult> {

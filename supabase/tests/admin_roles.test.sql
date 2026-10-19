@@ -1,6 +1,6 @@
 -- pgTAP: pembagian role admin vs admin_finance vs superadmin.  Jalankan: npm run db:test
 begin;
-select plan(16);
+select plan(20);
 
 insert into public.account_provisioning (email, role, display_name) values
   ('plain@test.local', 'admin', 'Admin Biasa'),
@@ -53,6 +53,16 @@ select throws_ok($$select public.reject_dues_payment(gen_random_uuid(), 'x')$$,
   'P0001', 'NOT_FOUND', 'admin_finance lolos gerbang reject uang kas');
 select matches(public.approve_re_registration(current_setting('test.rid')::uuid), '^FF-\d{3}$',
   'admin_finance bisa approve registrasi ulang');
+
+-- ================================================= daftar akun staf (hanya superadmin)
+select throws_ok($$select * from public.superadmin_list_staff()$$, '42501', 'FORBIDDEN',
+  'admin_finance tidak bisa melihat daftar staf');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000ac","role":"authenticated"}', true);
+select cmp_ok((select count(*)::int from public.superadmin_list_staff()), '>=', 3, 'superadmin melihat daftar staf');
+select ok((select bool_and(email is not null) from public.superadmin_list_staff()), 'daftar staf memuat email');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000aa","role":"authenticated"}', true);
+select throws_ok($$select * from public.superadmin_list_staff()$$, '42501', 'FORBIDDEN', 'admin biasa tidak bisa melihat daftar staf');
 
 -- ================================================= superadmin mengubah role akun
 reset role;

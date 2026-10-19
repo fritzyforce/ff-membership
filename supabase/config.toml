@@ -261,7 +261,7 @@ subject = "Konfirmasi email akun Fritzy Force"
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Reset password akun Fritzy Force"
+subject = "Atur password akun Fritzy Force"
 content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
@@ -408,6 +408,13 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/send-status-email/deno.json"
 entrypoint = "./functions/send-status-email/index.ts"
+
+# Superadmin membuat akun staf (admin / admin_finance). JWT wajib; pemanggil dicek superadmin di dalam fungsi.
+[functions.create-staff-account]
+enabled = true
+verify_jwt = true
+import_map = "./functions/create-staff-account/deno.json"
+entrypoint = "./functions/create-staff-account/index.ts"
 
 [analytics]
 enabled = true

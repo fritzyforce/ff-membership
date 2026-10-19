@@ -11,7 +11,7 @@ const COPY = {
   recruitment: {
     title: "Pendaftaran Terkirim",
     heading: "Pendaftaran Diterima!",
-    body: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Simpan kode pendaftaran di bawah ini untuk mengecek status pendaftaran.",
+    body: "Simpan kode pendaftaran di bawah ini untuk mengecek status pendaftaran.",
     label: "Kode Pendaftaran",
   },
   re_registration: {

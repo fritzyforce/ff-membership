@@ -1,406 +1,352 @@
-# Panduan deploy: Supabase + Cloudflare (dua lingkungan)
+# Panduan deploy dari nol: Supabase + Resend + domain cPanel
 
-Panduan ini dipakai **dua kali** dengan langkah yang sama, hanya nilainya berbeda:
+Panduan ini **berdiri sendiri** dan ditulis untuk kondisi: **akun Supabase dan Resend baru**, domain di **cPanel** (`membership.fritzyforce.my.id`), dan situs di **Cloudflare atau cPanel** (pilih di Langkah 9).
+Lokasi file ini di repo: `docs/deploy-supabase-cloudflare.md`.
 
-| | **1. Pribadi (uji coba)** | **2. Live (produksi)** |
-|---|---|---|
-| Akun Cloudflare / Supabase | akun pribadi | akun **lain** (milik organisasi/klien) |
-| Project Supabase | `ff-membership-staging` | `ff-membership-prod` (**terpisah**, jangan dipakai bareng) |
-| Domain | `*.workers.dev` | domain sendiri (disarankan) |
-| Email (Resend) | **domain terverifikasi** (boleh subdomain, mis. `mail-staging.domainmu.com`) → bisa kirim ke semua email | **domain terverifikasi** milik pihak live → bisa kirim ke semua email |
-| Data | data uji, boleh dihapus | data nyata; backup & hati-hati |
+> Dashboard Supabase/Resend/Cloudflare/cPanel sering berganti tampilan. Bila nama menu sedikit berbeda, cari menu yang fungsinya sama.
 
-Semua memakai paket gratis. Estimasi: 45–60 menit untuk lingkungan pertama, ±30 menit untuk yang kedua (karena sudah hafal).
-
-Gambaran: aplikasi ini **static export** (tanpa server). Browser bicara langsung ke Supabase memakai *anon/publishable key*;
-keamanan dijaga RLS + RPC di database (lihat README). Cloudflare hanya menyajikan file statis. Email approve registrasi ulang dikirim
-oleh **Supabase Edge Function** (kunci Resend tidak boleh ada di browser).
+## Gambaran
 
 ```
-Browser ──> Cloudflare (file statis)
+Browser ──> hosting statis (Cloudflare Workers ATAU cPanel) di https://membership.fritzyforce.my.id
    ├──────> Supabase (Auth + Postgres + Storage)
-   └──────> Supabase Edge Function send-status-email ──> Resend ──> email pendaftar
-Supabase Auth ──(SMTP)──> email konfirmasi akun & reset password
+   └──────> Supabase Edge Function "send-status-email" ──> Resend ──> email "registrasi ulang disetujui"
+Supabase Auth ──(SMTP Resend)──> email konfirmasi akun & reset password
 ```
 
-## Isi
-- [Persiapan](#persiapan)
-- [Nilai untuk lingkungan staging](#nilai-untuk-lingkungan-staging-sudah-ada)
-- [Bagian A — Supabase](#bagian-a--supabase)
-- [Bagian B — Kode di GitHub](#bagian-b--kode-di-github)
-- [Bagian C — Cloudflare](#bagian-c--cloudflare)
-- [Bagian D — Hubungkan URL ke Supabase](#bagian-d--hubungkan-url-ke-supabase)
-- [Bagian E — Uji asap](#bagian-e--uji-asap-smoke-test)
-- [Bagian F — Khusus lingkungan live](#bagian-f--khusus-lingkungan-live)
-- [Pemecahan masalah](#pemecahan-masalah) · [Update rutin](#update-rutin)
+Aplikasi ini **static export** (tanpa server). Browser bicara langsung ke Supabase dengan *publishable/anon key*; keamanan dijaga
+RLS + RPC di database. Kunci Resend hanya ada di server (secrets Edge Function), **tidak pernah** di browser/Cloudflare.
 
----
+## Yang harus disiapkan dulu
 
-## Persiapan
-
-- Akun **GitHub**, **Cloudflare**, **Supabase**, dan **Resend** — untuk lingkungan live semuanya milik pihak live.
-- **Satu domain** yang DNS-nya bisa Anda atur, untuk verifikasi Resend — **juga untuk staging**. Resend hanya mengizinkan kirim ke alamat
-  sembarang bila domain pengirim terverifikasi. Tanpa domain sendiri, staging hanya bisa mengirim ke email pemilik akun Resend.
-  Bila sudah punya domain, pakai **subdomain** khusus staging (mis. `mail-staging.domainmu.com`); kalau belum, beli domain murah.
-- Node 20+ dan folder proyek ini. CLI Supabase sudah ada di `devDependencies` → pakai `npx supabase …`.
-- Dua akun Supabase berbeda di satu komputer: CLI hanya login ke **satu akun sekaligus**. Sebelum mengerjakan lingkungan lain:
-  ```bash
-  npx supabase logout
-  npx supabase login            # login ke akun lingkungan yang akan dikerjakan
-  ```
-  (alternatif tanpa login interaktif: `export SUPABASE_ACCESS_TOKEN=sbp_…` dari Dashboard › Account › Access Tokens.)
-  Setiap lingkungan di-`link` ke project-nya sendiri (`npx supabase link --project-ref <ref>`), jadi **selalu cek ref** sebelum
-  `db push` / `functions deploy` agar tidak menimpa project yang salah.
-- Siapkan **catatan** (password manager) per lingkungan: Database password, Project ref, URL, publishable key, API key Resend.
-  **Jangan pernah** commit ke git atau menaruh `service_role` / *secret key* di Cloudflare atau kode.
-
----
-
-## Nilai untuk lingkungan staging (sudah ada)
-
-Situs staging sudah ter-deploy di Cloudflare: **https://ff-membership.fritzyforce-ofc.workers.dev** (Worker `ff-membership`).
-Dari bundle situs itu terlihat project Supabase yang ditanam: `https://ayprjzduqshmwdujwzwb.supabase.co`
-(project ref `ayprjzduqshmwdujwzwb` — **pastikan ini project staging yang Anda maksud**, bukan project lain).
-
-Nilai yang dipakai di langkah-langkah di bawah untuk staging:
-
-| Yang dibutuhkan | Nilai staging |
+| Kebutuhan | Catatan |
 |---|---|
-| Project ref | `ayprjzduqshmwdujwzwb` |
-| Supabase **Site URL** (A4/D) | `https://ff-membership.fritzyforce-ofc.workers.dev` |
-| Supabase **Redirect URLs** (D) | `https://ff-membership.fritzyforce-ofc.workers.dev/**` (+ `http://localhost:3000/**` untuk dev) |
-| Secret Edge Function `SITE_URL` (A8) | `https://ff-membership.fritzyforce-ofc.workers.dev` |
-| Secret `EMAIL_FROM` (A8) / sender SMTP (A6) | `Fritzy Force <noreply@<domain-staging-terverifikasi>>` — domain Resend belum ditentukan |
-| Build variables Cloudflare (C1) | `NEXT_PUBLIC_SUPABASE_URL=https://ayprjzduqshmwdujwzwb.supabase.co`, `NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable key>` |
+| Akun **Supabase** baru | https://supabase.com (login GitHub/email) |
+| Akun **Resend** baru | https://resend.com |
+| **Domain** `membership.fritzyforce.my.id` | Sudah ditambahkan di cPanel. Dipakai untuk **situs** dan **pengirim email Resend**. Pengelola DNS-nya = cPanel (Zone Editor), kecuali Anda memindahkan nameserver ke Cloudflare. |
+| Akun **Cloudflare** + repo GitHub terhubung | Hanya bila situs dihosting di Cloudflare (Langkah 9, opsi A). Situs staging sementara: `https://ff-membership.fritzyforce-ofc.workers.dev` |
+| Komputer dengan **Node 20+** dan folder proyek | CLI Supabase sudah ada di proyek → pakai `npx supabase …` |
 
-**Urutan kerja untuk staging** (langkah rinci ada di Bagian A–E; centang yang sudah Anda lakukan):
+Catat di password manager (jangan di git/chat): **Database password**, **Project ref**, **Resend API key**.
+
+URL situs yang dipakai di seluruh panduan (ganti bila memakai domain sendiri):
+
+```
+SITE_URL = https://membership.fritzyforce.my.id
+```
+
+(Selama domain belum aktif, `https://ff-membership.fritzyforce-ofc.workers.dev` masih bisa dipakai sementara; ganti ke domain utama setelah Langkah 9.)
+
+---
+
+## Langkah 1 — Buat project Supabase
+
+1. https://supabase.com/dashboard → **New project**.
+2. Name `ff-membership`, **Region: Southeast Asia (Singapore)**, buat **Database password** yang kuat (simpan!).
+3. Tunggu status *Healthy* (±2 menit).
+4. Catat **Project ref**: potongan acak di URL dashboard `…/project/<ref>`.
+
+> Paket gratis: project tidak aktif ±1 minggu di-*pause* (tinggal *Restore*). Untuk produksi sungguhan pertimbangkan Pro.
+
+## Langkah 2 — Ambil URL dan key
+
+Dashboard → **Project Settings › API Keys** (atau tombol *Connect*):
+
+- **Project URL**: `https://<ref>.supabase.co`
+- **Publishable key** (`sb_publishable_…`) **atau** *anon key* lama (`eyJ…`) — salah satu, salin lewat tombol *copy*.
+
+⚠️ Jangan pernah memakai `service_role` / *secret key* di Cloudflare atau kode. Hanya URL + publishable/anon key.
+
+## Langkah 3 — Pasang database (migrasi)
+
+Dari folder proyek, di terminal:
 
 ```bash
 cd /Users/brian/projects/ff-membership
-npx supabase login                                   # akun Supabase STAGING
-npx supabase link --project-ref ayprjzduqshmwdujwzwb
-npx supabase db push                                 # A3: semua migrasi
-
-npx supabase secrets set --project-ref ayprjzduqshmwdujwzwb \
-  RESEND_API_KEY=re_xxxxxxxx \
-  EMAIL_FROM="Fritzy Force <noreply@<domain-staging-terverifikasi>>" \
-  SITE_URL=https://ff-membership.fritzyforce-ofc.workers.dev
-npx supabase functions deploy send-status-email --project-ref ayprjzduqshmwdujwzwb   # A8
+npx supabase login                                   # login ke akun Supabase BARU (browser)
+npx supabase link --project-ref <ref>                # minta Database password dari Langkah 1
+npx supabase db push                                 # terapkan SEMUA file di supabase/migrations/
 ```
 
-- [ ] A3 migrasi diterapkan (Table Editor berisi `members`, `re_registrations`, `legacy_members`, dst.)
-- [ ] A4 Auth: Confirm email **ON**, sign-up ON, password policy
-- [ ] A5–A7 Resend: domain **Verified**, SMTP Auth, template email
-- [ ] A8 secrets + deploy `send-status-email`
-- [ ] A9 akun staf (`superadmin`, `admin_finance`, `admin`)
-- [ ] D Site URL & Redirect URLs (tanpa ini tautan konfirmasi/reset gagal)
-- [ ] E uji asap di URL staging
-
-Bila build Cloudflare sebelumnya dibuat **sebelum** build variables diisi benar, jalankan *Retry build* agar `NEXT_PUBLIC_*` ikut tertanam.
-
----
-
-## Bagian A — Supabase
-
-### A1. Buat project
-1. https://supabase.com/dashboard → **New project**.
-2. Name (`ff-membership-staging` / `ff-membership-prod`), **Region: Southeast Asia (Singapore)**, buat **Database password** yang kuat
-   dan simpan (dipakai di A3).
-3. Tunggu status *Healthy* (±2 menit).
-4. Catat **Project ref** (potongan acak di URL dashboard: `…/project/<ref>`).
-
-> Paket gratis: project yang tidak aktif ±1 minggu akan **di-pause**. Wajar untuk uji coba; untuk live pertimbangkan Pro (lihat Bagian F).
-
-### A2. Ambil URL & key
-Dashboard → **Project Settings › API Keys** (atau tombol *Connect*):
-- **Project URL**: `https://<ref>.supabase.co`
-- **Publishable key** (`sb_publishable_…`) — atau *anon key* lama (`eyJ…`); keduanya bisa dipakai aplikasi ini.
-
-⚠️ Hanya URL + publishable/anon key yang boleh dipakai di Cloudflare. **Jangan** pakai `service_role` / *secret key*.
-
-### A3. Terapkan migrasi database
-Dari folder proyek (pastikan CLI login ke akun yang benar):
-```bash
-npx supabase link --project-ref <ref>      # minta Database password dari A1
-npx supabase db push                       # terapkan SEMUA file di supabase/migrations/
-```
-`db push` menampilkan daftar migrasi (`20261011…` dan seterusnya) — jawab **Y**. Ini sekaligus membuat tabel, RLS, fungsi RPC,
-trigger akun, role (`admin`, `admin_finance`, `superadmin`), tabel nomor anggota lama, dan bucket privat `payment-proofs`.
+`db push` menampilkan daftar migrasi (`20261011…` s/d `20261022…`, bertambah bila ada migrasi baru) → jawab **Y**.
+Ini membuat tabel, RLS, fungsi RPC, trigger akun, role (`admin`, `admin_finance`, `superadmin`), tabel nomor anggota lama,
+pencatatan uang kas, dan bucket privat `payment-proofs`.
 
 Cek: Dashboard → **Table Editor** berisi `members`, `re_registrations`, `legacy_members`, `dues_payments`, `profiles`, dst.;
 **Storage** berisi bucket `payment-proofs` (Private).
 
-Jika `db push` gagal terhubung (error IPv6 / “network unreachable”): Dashboard → *Connect* → **Session pooler** → salin connection
-string, lalu `npx supabase db push --db-url "<string pooler>"`.
+Bila gagal terhubung (IPv6 / "network unreachable"): Dashboard → *Connect* → **Session pooler** → salin connection string →
+`npx supabase db push --db-url "<string pooler>"`.
 
-> **Jangan** menjalankan `npm run db:seed` ke cloud — script memang menolak host non-lokal. Data uji dibuat lewat aplikasi (A9 & Bagian E).
+> **Jangan** menjalankan `npm run db:seed` atau `db:reset` ke cloud (seed menolak host non-lokal). Itu hanya untuk Docker lokal.
 
-### A4. Pengaturan Auth (wajib — tidak ikut terbawa dari `config.toml`)
-Dashboard → **Authentication**:
+## Langkah 4 — Pengaturan Auth Supabase
+
+Dashboard → **Authentication** (pengaturan ini **tidak** ikut terbawa dari `config.toml`):
 
 | Menu | Setel |
 |---|---|
-| **Sign In / Providers › Email** | Enabled; **Confirm email = ON** (akun baru wajib konfirmasi email sebelum bisa login) |
-| **Sign In / Providers › Allow new users to sign up** | **ON** (pendaftaran akun anggota memakainya; trigger database yang membatasi siapa yang boleh) |
-| **Policies / Password** | Minimum length **8**; Password requirements: **huruf kecil + besar + angka** (*Lowercase, uppercase letters and digits*) |
-| **URL Configuration** | diisi di [Bagian D](#bagian-d--hubungkan-url-ke-supabase) setelah URL Cloudflare diketahui |
+| **Sign In / Providers › Email** | Enabled; **Confirm email = ON** |
+| **Allow new users to sign up** | **ON** (trigger database yang membatasi siapa boleh mendaftar) |
+| **Password** | Minimum length **8**; wajib **huruf kecil + besar + angka** |
+| **URL Configuration › Site URL** | `https://membership.fritzyforce.my.id` |
+| **URL Configuration › Redirect URLs** | tambah `https://membership.fritzyforce.my.id/**`; selama masa peralihan juga `https://ff-membership.fritzyforce-ofc.workers.dev/**`; `http://localhost:3000/**` bila perlu dev lokal |
 
-> Jangan `supabase config push`: akan menimpa Site URL cloud dengan `http://localhost:3000` dari `config.toml`.
+Tanpa Site URL/Redirect URLs yang benar, tautan konfirmasi email dan reset password **gagal**.
+Jangan jalankan `supabase config push` (akan menimpa Site URL dengan `http://localhost:3000`).
 
-### A5. Resend: akun, API key, (domain)
-Email dikirim lewat Resend (gratis 3.000 email/bulan). Rinci & alasannya: [email-setup.md](email-setup.md).
+## Langkah 5 — Resend: domain dan API key
 
-1. https://resend.com → daftar (akun lingkungan yang bersangkutan).
-2. **API Keys** → buat key khusus pengiriman. Simpan di password manager.
-3. **Domain** (wajib di kedua lingkungan, supaya bisa mengirim ke semua email):
-   - Resend → **Domains → Add Domain** → masukkan domain/subdomain pengirim:
-     - **Staging**: mis. `mail-staging.domainmu.com` (subdomain dari domain yang Anda punya).
-     - **Live**: domain milik pihak live, mis. `domainmu.com` atau `mail.domainmu.com`.
-   - Pasang record DNS yang diminta (SPF, DKIM) di pengelola DNS domain, tunggu status **Verified** (bisa beberapa menit–jam).
-   - Pengirim yang dipakai: `noreply@<domain-terverifikasi>`.
-   - Paket gratis Resend membatasi jumlah domain per akun (saat ini 1; cek https://resend.com/pricing). Staging (akun pribadi) dan
-     live (akun lain) memakai **akun Resend masing-masing**, jadi tiap akun cukup 1 domain.
+1. Daftar di https://resend.com.
+2. **Domains → Add Domain** → isi **`membership.fritzyforce.my.id`**. Resend menampilkan daftar record DNS (biasanya DKIM `TXT` di
+   `resend._domainkey`, serta `MX` dan `TXT` (SPF) di subdomain `send`).
+3. **Pasang record itu di cPanel** (rincian di bawah), lalu klik **Verify** di Resend. Tunggu status **Verified** (menit–jam).
+4. **API Keys → Create API Key** (akses *Sending access*). Salin key `re_…` **sekarang** (hanya tampil sekali). Simpan di password manager.
+5. Alamat pengirim: **`noreply@membership.fritzyforce.my.id`**.
 
-> Selama domain staging belum *Verified*, Resend menolak pengiriman ke selain email pemilik akun (error 403 `validation_error`).
-> Jangan lanjut ke uji email sebelum statusnya Verified.
+### Memasang record DNS Resend di cPanel (Zone Editor)
 
-### A6. SMTP untuk email Auth (konfirmasi akun & reset password)
-SMTP bawaan Supabase hanya mengirim ke anggota tim organisasi Supabase (±2 email/jam) — **tidak cukup** karena *Confirm email* ON.
-Dashboard → **Authentication › Emails › SMTP Settings** → aktifkan **Custom SMTP**:
+cPanel → **Domains › Zone Editor** → pada baris `membership.fritzyforce.my.id` klik **Manage** → **Add Record**. Untuk tiap record dari Resend:
+
+| Kolom cPanel | Isi |
+|---|---|
+| **Name** | nama dari Resend. cPanel biasanya menambahkan nama domain otomatis; bila Resend menampilkan `resend._domainkey.membership`, isi persis itu, **bukan** versi lengkap yang berujung `fritzyforce.my.id` (supaya tidak dobel). Bila ragu, tulis nama lengkap diakhiri titik: `resend._domainkey.membership.fritzyforce.my.id.` |
+| **Type** | sesuai Resend (`TXT` atau `MX`) |
+| **Record / Value** | salin persis dari Resend (nilai DKIM panjang: salin utuh, tanpa spasi atau baris baru tambahan) |
+| **Priority** (khusus MX) | sesuai Resend (biasanya 10) |
+| **TTL** | biarkan default |
+
+Catatan:
+- Record Resend berada di nama `resend._domainkey.membership` dan `send.membership`, jadi **tidak bentrok** dengan record yang dibuat cPanel untuk `membership` (A, MX lokal, dst.). Jangan hapus record bawaan cPanel.
+- Bila cPanel/hosting sudah punya `TXT` SPF di `membership.fritzyforce.my.id`, jangan diubah; SPF Resend ada di `send.membership`.
+- Perubahan DNS bisa butuh waktu merambat. Kalau **Verify** gagal, tunggu beberapa menit lalu coba lagi; cek ejaan nama record.
+- Nameserver domain harus yang dipakai cPanel (milik penyedia hosting). Kalau Zone Editor tidak ada atau record tidak berpengaruh, berarti DNS dikelola di tempat lain (mis. Cloudflare) — pasang record di sana.
+
+> Jangan lanjut ke uji email sebelum domain berstatus **Verified**; kalau belum, kiriman ke selain email pemilik akun ditolak (403).
+> Paket gratis membatasi jumlah domain per akun dan jumlah email (cek https://resend.com/pricing).
+> Bila Resend menolak karena domain "recently claimed", tunggu atau hubungi support Resend; ini jeda dari sisi Resend, bukan kesalahan konfigurasi.
+
+## Langkah 6 — SMTP Supabase untuk email konfirmasi dan reset password
+
+SMTP bawaan Supabase hanya mengirim ke anggota tim Supabase (±2 email/jam), **tidak cukup**. Dashboard Supabase →
+**Authentication › Emails › SMTP Settings** → aktifkan **Custom SMTP**:
 
 | Field | Nilai |
 |---|---|
 | Host | `smtp.resend.com` |
 | Port | `465` |
 | Username | `resend` |
-| Password | API key Resend (A5) |
-| Sender email | `noreply@<domain-terverifikasi>` (staging dan live) |
+| Password | API key Resend (`re_…`) |
+| Sender email | `noreply@membership.fritzyforce.my.id` |
 | Sender name | `Fritzy Force` |
 
-Lalu **Authentication › Rate Limits** → atur batas email per jam sesuai kebutuhan (default setelah SMTP sendiri: 30/jam).
+Lalu **Authentication › Rate Limits** → atur batas email per jam sesuai kebutuhan (default 30/jam setelah SMTP sendiri dipasang).
 
+## Langkah 7 — Template email Auth
 
-### A7. Template email Auth
 Dashboard → **Authentication › Emails › Templates**:
-- **Confirm signup** → salin isi `supabase/templates/confirmation.html` ; subjek: `Konfirmasi email akun Fritzy Force`
-- **Reset Password** → salin isi `supabase/templates/recovery.html` ; subjek: `Reset password akun Fritzy Force`
 
-### A8. Edge Function: email approve registrasi ulang
-Fungsi `send-status-email` mengirim email saat admin Approve (status disetujui + tombol **Cek Status Registrasi** + link Buat Akun).
+| Template | Isi (salin dari repo) | Subjek |
+|---|---|---|
+| **Confirm signup** | `supabase/templates/confirmation.html` | `Konfirmasi email akun Fritzy Force` |
+| **Reset Password** | `supabase/templates/recovery.html` | `Atur password akun Fritzy Force` (dipakai juga untuk email "atur password" staf baru) |
+
+## Langkah 8 — Edge Function: email "registrasi ulang disetujui" dan pembuatan akun staf
+
+Dijalankan di **terminal komputer Anda**, folder proyek (bukan di dashboard). Pastikan CLI login ke akun Supabase yang benar.
 
 ```bash
+cd /Users/brian/projects/ff-membership
+
 # secrets disimpan di Supabase (bukan di git / Cloudflare)
 npx supabase secrets set --project-ref <ref> \
   RESEND_API_KEY=re_xxxxxxxx \
-  EMAIL_FROM="Fritzy Force <noreply@mail-staging.domainmu.com>" \
-  SITE_URL=https://<url-situs-ini>
+  EMAIL_FROM="Fritzy Force <noreply@membership.fritzyforce.my.id>" \
+  SITE_URL=https://membership.fritzyforce.my.id
 
 npx supabase functions deploy send-status-email --project-ref <ref>
+npx supabase functions deploy create-staff-account --project-ref <ref>   # superadmin membuat akun staf dari menu "Akun Staf"
 ```
-- `EMAIL_FROM`: `Fritzy Force <noreply@<domain-terverifikasi>>` — staging dan live (alamat di domain yang *Verified* di Resend).
-- `SITE_URL`: URL produksi lingkungan ini **tanpa** garis miring akhir (mis. `https://ff-membership.fritzyforce-ofc.workers.dev` atau
-  `https://anggota.domainmu.com`). Dipakai untuk membuat link di email. Bila URL belum diketahui (belum deploy Cloudflare), jalankan
-  `secrets set` lagi setelah [Bagian C](#bagian-c--cloudflare); fungsi tidak perlu di-deploy ulang untuk mengubah secrets.
-- Cek: Dashboard → **Edge Functions** harus menampilkan `send-status-email` (Active).
+`create-staff-account` memakai `SUPABASE_SERVICE_ROLE_KEY` yang **disuntik otomatis** oleh Supabase (tidak perlu di-set manual) dan `SITE_URL` untuk
+tautan di email atur password. Fungsi ini hanya mau melayani **superadmin** (dicek di dalam fungsi), jadi aman walau dipanggil dari browser.
 
-Sebelum fungsi ini jalan, Approve tetap berhasil; admin hanya melihat peringatan "email gagal dikirim" dan bisa memakai tombol
-*Kirim ulang email* di detail registrasi.
+- `EMAIL_FROM` harus alamat di domain yang **Verified** di Resend.
+- `SITE_URL` tanpa garis miring di akhir; dipakai untuk link di email (tombol **Cek Status Registrasi** → `SITE_URL/cek-status/?kode=…`).
+- Ubah secrets kapan saja dengan `secrets set` lagi (tidak perlu deploy ulang fungsi).
+- Cek: Dashboard → **Edge Functions** → `send-status-email` berstatus Active. Log ada di tab **Logs** fungsi itu.
+- Bila `deploy` mengeluh soal Docker, tambahkan `--use-api` di akhir perintah.
 
-### A9. Buat akun staf pertama
-Sign-up publik tidak bisa membuat akun staf; email staf harus didaftarkan dulu (sekali pakai). Role yang tersedia:
+Sebelum fungsi ini siap, tombol Approve tetap berhasil; admin hanya melihat peringatan "email gagal dikirim" dan bisa memakai
+**Kirim ulang email** di detail registrasi.
+
+## Langkah 9 — Hosting situs di `membership.fritzyforce.my.id`
+
+> **Kondisi Anda (DNS di Cloudflare akun pengurus lama, deploy di akun fritzyforce):** ikuti panduan khusus
+> [deploy-cloudflare-pages-domain.md](deploy-cloudflare-pages-domain.md) — itu menggantikan Langkah 9 di bawah, termasuk cara memasang record Resend
+> di Cloudflare (bukan di Zone Editor cPanel).
+
+Domain dikelola di **cPanel**, sedangkan situs ini adalah file statis (folder `out/` hasil `npm run build`). Pilih **satu** opsi:
+
+| Opsi | Cocok bila | Kekurangan |
+|---|---|---|
+| **A. Cloudflare Workers** (otomatis deploy dari GitHub) | ingin deploy otomatis tiap `git push` | Custom domain di Cloudflare mengharuskan DNS domain berada di Cloudflare (pindah nameserver) — lihat A |
+| **B. Hosting cPanel** (upload manual file statis) | domain dan hosting sudah di cPanel dan tidak ingin memindah DNS | Build dan upload manual tiap perubahan |
+| **C. Tetap `workers.dev`** untuk situs, domain hanya untuk email | ingin cepat | Situs tidak memakai domain sendiri |
+
+Untuk **semua opsi**, isi dua nilai build yang sama (project Supabase **baru**):
+`NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co` (tanpa `/` di akhir) dan `NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable/anon key>` (tanpa spasi).
+Nilai ini **ditanam saat build** — kalau diubah, build ulang.
+
+### Opsi A — Cloudflare Workers + domain sendiri
+
+1. Variabel build: Cloudflare → **Workers & Pages** → Worker `ff-membership` → **Settings › Build › Variables and secrets**.
+   Isi **build variables** (bukan runtime): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NODE_VERSION=20`.
+   Build command `npm run build`, Deploy command `npx wrangler deploy`, nama Worker `ff-membership` (sama dengan `wrangler.toml`).
+   Lalu **Retry build**.
+2. Pasang domain: Worker → **Settings › Domains & Routes › Add › Custom domain** → `membership.fritzyforce.my.id`.
+   Cloudflare **mengharuskan zona DNS domain berada di akun Cloudflare** untuk custom domain Worker. Artinya:
+   - Tambahkan `fritzyforce.my.id` ke Cloudflare (*Add a domain*), lalu **ganti nameserver** di registrar/cPanel penyedia ke nameserver Cloudflare.
+   - ⚠️ **Sebelum** memindah nameserver, salin semua record DNS yang ada di cPanel (A, MX, TXT, dll.) ke Cloudflare, termasuk **record Resend** dari Langkah 5.
+     Record yang tidak ikut dipindah akan mati (situs, email hosting, dll.).
+   - Setelah pindah, record DNS dikelola di Cloudflare, bukan lagi Zone Editor cPanel.
+3. Cek `https://membership.fritzyforce.my.id` terbuka.
+
+Cadangan tanpa GitHub (dari komputer): `npx wrangler login`, lalu
+`NEXT_PUBLIC_SUPABASE_URL=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… npm run deploy:workers`.
+
+### Opsi B — Hosting di cPanel (tanpa pindah DNS)
+
+Tidak butuh Cloudflare sama sekali. Dari komputer Anda:
+
+```bash
+cd /Users/brian/projects/ff-membership
+NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co \
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable-key> \
+npm run build            # hasil di folder out/
+cd out && zip -r ../site.zip . && cd ..
+```
+
+Di cPanel:
+1. **Domains** → pastikan `membership.fritzyforce.my.id` punya *Document Root* sendiri (mis. `public_html/membership`).
+2. **File Manager** → buka Document Root itu → **Upload** `site.zip` → **Extract** → hapus zip. File seperti `index.html`, `login/index.html`, `_next/…`
+   harus berada **langsung** di Document Root (bukan di dalam folder `out`).
+3. Aktifkan **SSL** untuk domain: cPanel → **SSL/TLS Status** → *Run AutoSSL* (Let's Encrypt/cPanel). Situs harus `https`.
+4. Buka `https://membership.fritzyforce.my.id/login/`. Halaman berakhiran `/` (konfigurasi `trailingSlash`); URL tanpa `/` akan dialihkan Apache.
+5. Untuk memperbarui: build ulang → upload ulang `site.zip` → extract menimpa file lama (bersihkan folder `_next` lama bila perlu).
+
+> Folder `public/_headers` hanya berlaku di Cloudflare/Netlify; di cPanel diabaikan (tidak masalah). Opsional: tambahkan `.htaccess` untuk cache.
+
+### Opsi C — Tetap workers.dev
+
+Pakai langkah Opsi A bagian 1 saja (tanpa custom domain). Situs: `https://ff-membership.fritzyforce-ofc.workers.dev`.
+Dalam kasus ini, `SITE_URL`, Site URL Supabase, dan Redirect URLs memakai URL `workers.dev`; domain `membership.fritzyforce.my.id` hanya dipakai untuk email.
+
+### Setelah situs aktif di domain utama
+
+Pastikan konsisten di tiga tempat: Site URL & Redirect URLs Supabase (Langkah 4), secret `SITE_URL` Edge Function (Langkah 8), dan URL yang dibuka pengguna.
+Kalau berubah, perbarui: `npx supabase secrets set --project-ref <ref> SITE_URL=https://membership.fritzyforce.my.id`.
+
+## Langkah 10 — Buat akun staf pertama
+
+Sign-up publik tidak bisa membuat staf; email staf didaftarkan dulu (sekali pakai). Role:
 
 | Role | Hak |
 |---|---|
-| `superadmin` | semuanya (termasuk approve/reject & kelola role akun) |
+| `superadmin` | semuanya (termasuk approve/reject, ubah role, nonaktifkan akun) |
 | `admin_finance` | lihat semua + kelola anggota + **approve/reject uang kas & registrasi ulang** |
 | `admin` | lihat semua + kelola anggota; **tidak** bisa approve/reject |
 
-1. Dashboard → **SQL Editor** → jalankan (ganti email/nama; ulangi per orang):
+1. Dashboard Supabase → **SQL Editor** → jalankan (ganti email & nama; salah satu role saja sudah cukup untuk mulai):
    ```sql
    insert into public.account_provisioning (email, role, display_name) values
-     ('superadmin@domainmu.com', 'superadmin',    'Nama Superadmin'),
-     ('finance@domainmu.com',    'admin_finance', 'Nama Finance'),
-     ('admin@domainmu.com',      'admin',         'Nama Admin');
+     ('superadmin@domainanda.com', 'superadmin',    'Nama Superadmin'),
+     ('finance@domainanda.com',    'admin_finance', 'Nama Finance');
    ```
-2. Dashboard → **Authentication › Users › Add user › Create new user** untuk **tiap** email di atas: password kuat
-   (huruf besar+kecil+angka, ≥ 8), centang **Auto Confirm User**.
-3. Cek: tabel `profiles` punya baris dengan role masing-masing, dan `account_provisioning` kosong lagi (sekali pakai).
+2. **Authentication › Users › Add user › Create new user** untuk **tiap** email di atas: password kuat
+   (huruf besar+kecil+angka, minimal 8) dan centang **Auto Confirm User**.
+3. Cek tabel `profiles`: ada baris dengan role tersebut; `account_provisioning` kosong lagi.
 
-> Email staf **tidak harus** email sungguhan karena memakai *Auto Confirm* (tidak ada email yang dikirim). Pakai email
-> sungguhan untuk akun yang akan dipakai login nyata/reset password.
+**Staf berikutnya** tidak perlu SQL lagi: login sebagai superadmin → menu **Akun Staf** → isi email, nama, role (**Admin** atau **Admin Finance**) → **Buat Akun**.
+Staf menerima email untuk mengatur passwordnya sendiri (tombol *Kirim ulang email* tersedia selama ia belum pernah login). Syaratnya: Edge Function
+`create-staff-account` sudah di-deploy (Langkah 8) dan SMTP Resend aktif (Langkah 6). Email yang sudah jadi anggota ditolak: minta ia membuat akun anggota lalu ubah
+role-nya lewat detail anggota.
 
----
+## Langkah 11 — Isi daftar nomor anggota lama
 
-## Bagian B — Kode di GitHub
+Login sebagai staf → menu **Nomor Anggota Lama** → **Tambah Nomor**. Satu baris per anggota:
 
-Repo git sudah ada di folder proyek. Pastikan bersih dan terkirim ke GitHub:
-```bash
-git status          # PASTIKAN tidak ada .env.local / supabase/functions/.env yang ikut (harus tidak ada)
-git branch -M main  # branch utama bernama main (Cloudflare production mengikuti branch ini)
 ```
-Buat repo **kosong & private** di GitHub, lalu:
-```bash
-git remote add origin git@github.com:<username>/ff-membership.git
-git push -u origin main
+NOMOR, kelebihan bayar kas (bulan), display name Line
+OLD-001, 2, Budi Santoso
+OLD-002, , Siti Aminah
+OLD-003, 1
 ```
-`.gitignore` sudah mengecualikan `.env*`, `node_modules`, `out`, `.next`.
 
-**Akses GitHub dari Cloudflare:** repo ada di organisasi GitHub (`fritzyforce`). Saat menghubungkan repo, Cloudflare memasang aplikasi
-GitHub **Cloudflare Workers and Pages**; pada organisasi, aplikasi ini harus disetujui **owner** organisasi (member biasa hanya
-bisa *request*). Pastikan juga akun Cloudflare terhubung ke akun GitHub yang punya akses ke repo. Untuk lingkungan live di akun
-Cloudflare berbeda, repo harus bisa diakses akun GitHub yang dipakai di sana (transfer repo, repo kedua, atau collaborator).
-Bila integrasi GitHub bermasalah, pakai **deploy lewat CLI** (C4) — tidak butuh GitHub sama sekali.
+- Kelebihan bayar boleh dikosongkan (= 0), maksimal 12 bulan. Display name Line (bukan ID Line) boleh dikosongkan. Bisa ditempel dari Excel/Sheets (pemisah koma atau tab).
+- Display name Line dipakai anggota untuk mencari nomornya di form registrasi ulang bila nomor tidak ditemukan. Bila dua anggota punya display name yang sama, form
+  meminta anggota menghubungi admin.
+- Aturan: pembayaran registrasi ulang dihitung kas **bulan registrasi**; kelebihan bayar 1 bulan melunasi bulan berikutnya,
+  2 bulan = dua bulan berikutnya, dst.
+- Nomor yang sudah registrasi ulang tidak bisa diubah. Tanpa daftar ini, tidak ada yang bisa registrasi ulang.
 
----
+## Langkah 12 — Uji asap (smoke test)
 
-## Bagian C — Cloudflare
+1. Buka situs → halaman utama tampil; **Registrasi Ulang** aktif, **Join Us Now!** nonaktif.
+2. `/login/` dengan akun staf → masuk ke `/admin/members/`.
+3. **Nomor Anggota Lama** → tambah `TEST-001, 1` dan `TEST-002`.
+4. Logout → `/registrasi-ulang/` → isi form (nomor lama `TEST-001`, **minimal satu sosmed**, email Anda sendiri) + unggah bukti JPG/PNG ≤ 5 MB → dapat kode `RU-XXXX-XXXX`.
+5. Login sebagai `admin_finance`/`superadmin` → **Registrasi Ulang** → buka detail → **Approve** → muncul nomor `FF-001` dan pesan email terkirim.
+   Cek inbox: ada tombol **Cek Status Registrasi**.
+6. Di detail anggota → **Riwayat Uang Kas**: pembayaran registrasi (bulan ini) + kelebihan bayar (bulan berikutnya), tanpa tunggakan; tombol **Rincian** menampilkan tanggal bayar dan tanggal approve.
+7. Login sebagai `admin` biasa → detail registrasi pending **tanpa** tombol Approve/Reject.
+8. Klik tombol di email → **Registrasi Akun** → buat password → muncul "Cek Email Kamu" → klik tautan di email konfirmasi → masuk `/akun/`.
+9. `/akun/bayar/` → ajukan pembayaran → staf finance Approve di **Uang Kas**.
 
-Aplikasi ini static export (`output: "export"` → folder `out/`). Konfigurasi Cloudflare sudah ada di [`wrangler.toml`](../wrangler.toml)
-(Workers + Static Assets, `html_handling = "auto-trailing-slash"`, halaman 404). Header cache ada di `public/_headers`.
-
-> Cloudflare cukup sering mengubah tampilan dashboard; nama menu di bawah bisa sedikit berbeda. Intinya sama: hubungkan repo,
-> build command `npm run build`, deploy command `npx wrangler deploy`, dan isi **build variables**.
-
-### C1. Hubungkan repo (otomatis tiap `git push`)
-1. https://dash.cloudflare.com → **Workers & Pages** → **Create** → **Import a repository** (Git).
-2. Pilih **GitHub**, izinkan aplikasi Cloudflare, pilih repo `fritzyforce/ff-membership` (butuh persetujuan owner organisasi bila diminta).
-3. Isi pengaturan build:
-
-   | Field | Nilai |
-   |---|---|
-   | Project / Worker name | `ff-membership` (**harus sama** dengan `name` di `wrangler.toml`) |
-   | Production branch | `main` (atau `master` bila belum diganti) |
-   | Build command | `npm run build` |
-   | Deploy command | `npx wrangler deploy` |
-   | Root directory | kosongkan (`/`) |
-
-4. **Build variables** (Settings › Build › *Variables and secrets*; di formulir awal ada bagian *Advanced / Variables*):
-
-   | Name | Value |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Project URL dari A2 (**project lingkungan ini**) |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Publishable (atau anon) key dari A2 |
-   | `NODE_VERSION` | `20` |
-
-   ⚠️ Ini harus **build variables** (dipakai saat `npm run build`), **bukan** runtime variables Worker. Variabel `NEXT_PUBLIC_*`
-   ditanam ke file statis saat build — kalau diubah, jalankan build ulang (*Retry build* / push commit baru).
-5. **Save and Deploy**. Selesai → catat URL, mis. `https://ff-membership.fritzyforce-ofc.workers.dev`.
-
-Setelah itu setiap `git push` ke production branch = deploy produksi; branch lain mendapat *preview build* (bila diaktifkan di Settings › Build).
-
-### C2. Domain sendiri (live)
-Worker → **Settings › Domains & Routes › Add › Custom domain** → `anggota.domainmu.com`. Bila DNS domain ada di Cloudflare, record dibuat
-otomatis; bila di penyedia lain, ikuti instruksi CNAME. Setelah *Active*, URL produksi = domain itu; pakai di Bagian D dan `SITE_URL` (A8).
-
-### C3. Matikan URL `workers.dev` (opsional, live)
-Bila sudah memakai domain sendiri: Worker → **Settings › Domains & Routes** → nonaktifkan `workers.dev` agar situs hanya lewat domain resmi.
-Hapus juga URL itu dari Redirect URLs Supabase (Bagian D).
-
-### C4. Alternatif: deploy lewat CLI (tanpa integrasi GitHub)
-Cocok bila akses GitHub organisasi belum beres, atau untuk deploy manual. Dari folder proyek:
-```bash
-npx wrangler login        # login ke akun Cloudflare lingkungan ini (browser)
-NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co \
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable-key> \
-npm run deploy:workers    # = npm run build && wrangler deploy
-```
-Variabel dikirim inline supaya tidak tercampur antara staging dan live (jangan simpan di file yang ikut git). Deploy ulang setiap ada
-perubahan kode. Satu komputer, dua akun Cloudflare: `npx wrangler logout` lalu `login` lagi sebelum mengerjakan lingkungan lain, dan cek
-`npx wrangler whoami`.
-
-> Platform lain yang juga bisa menyajikan folder `out/`: **Cloudflare Pages** (`npm run deploy:pages`) dan **Netlify**
-> (`netlify.toml` sudah ada). Pengaturan env var-nya sama.
-
----
-
-## Bagian D — Hubungkan URL ke Supabase
-
-Wajib, kalau tidak: tautan konfirmasi email & reset password gagal.
-
-1. Supabase → **Authentication › URL Configuration**:
-   - **Site URL**: URL produksi (domain sendiri bila ada, kalau tidak `https://ff-membership.fritzyforce-ofc.workers.dev`).
-   - **Redirect URLs** (tambahkan):
-     - `https://<url-produksi>/**`
-     - URL preview build Cloudflare bila dipakai (mis. `https://*-ff-membership.fritzyforce-ofc.workers.dev/**`). Opsional.
-     - `http://localhost:3000/**` — hanya untuk lingkungan pribadi/dev, **jangan** di live.
-2. Pastikan secret `SITE_URL` di Edge Function (A8) sama dengan URL produksi; kalau belum/salah:
-   ```bash
-   npx supabase secrets set --project-ref <ref> SITE_URL=https://<url-produksi>
-   ```
-
----
-
-## Bagian E — Uji asap (smoke test)
-
-Buka URL produksi, lalu:
-1. Homepage tampil; tombol **Registrasi Ulang** aktif, **Join Us Now!** nonaktif.
-2. `/login/` dengan akun `admin_finance` atau `superadmin` dari A9 → masuk ke `/admin/members/`.
-3. Menu **Nomor Anggota Lama** → **Tambah Nomor** → tempel beberapa nomor uji (mis. `TEST-001`, `TEST-002`) → tabel terisi.
-4. Logout. Buka `/registrasi-ulang/` → isi form (nomor lama `TEST-001`, minimal satu sosmed, email yang bisa menerima email — lihat
-   semua email boleh karena domain sudah Verified) + unggah bukti (JPG/PNG ≤ 5MB) → dapat kode `RU-XXXX-XXXX`.
-5. Login admin finance → **Registrasi Ulang** → detail → bukti tampil → **Approve** → muncul nomor `FF-001` dan pesan
-   "Email pemberitahuan terkirim". Cek inbox: email berisi tombol **Cek Status Registrasi**.
-   Nomor `TEST-001` di menu *Nomor Anggota Lama* kini berstatus **Sudah**.
-6. Login sebagai `admin` biasa → detail registrasi pending tidak punya tombol Approve/Reject (hanya catatan "Admin Finance").
-7. Klik tombol di email → `/cek-status/?kode=…` → *Approved* → **Registrasi Akun** (email terisi otomatis) → buat password →
-   muncul "Cek Email Kamu" → buka email konfirmasi → klik tautan → masuk ke `/akun/`.
-8. `/akun/bayar/` → pilih jumlah bulan, unggah bukti → admin finance **Uang Kas** → Approve.
-9. Mode gelap/terang mengikuti perangkat.
-
-Hapus data uji (nomor `TEST-…`, anggota/registrasi uji) sebelum dipakai nyata, terutama di lingkungan live (lihat Bagian F).
-
----
-
-## Bagian F — Khusus lingkungan live
-
-Ulangi Bagian A–E dengan akun & project **baru**, lalu:
-
-- [ ] Project Supabase **baru dan terpisah** dari lingkungan pribadi; Database password & key berbeda. `supabase link` ke ref yang baru.
-- [ ] Domain Resend milik pihak live **terverifikasi** di akun Resend live; `EMAIL_FROM` dan sender SMTP memakai alamat di domain itu (bukan domain staging).
-- [ ] `SITE_URL`, Site URL Supabase, dan Redirect URLs memakai domain live; **hapus** `http://localhost:3000/**`.
-- [ ] Akun staf asli dibuat lewat A9 dengan password kuat (ganti semua password uji); tidak ada akun `*.test`.
-- [ ] **Isi daftar nomor anggota lama yang sebenarnya** lewat menu *Nomor Anggota Lama › Tambah Nomor* (tempel banyak sekaligus,
-      satu nomor per baris, maks. 5.000 per kali). Ini wajib sebelum anggota lama bisa registrasi ulang.
-- [ ] Bersihkan data uji: nomor `TEST-…` dan anggota/registrasi uji (SQL Editor, hati-hati).
-- [ ] Rate limit email (Authentication › Rate Limits) sesuai perkiraan jumlah pendaftar.
-- [ ] Pertimbangkan **CAPTCHA (Cloudflare Turnstile)** pada form publik — pengecekan nomor anggota lama bisa dipanggil publik, jadi
-      nomor secara teori bisa ditebak satu per satu. Supabase: Authentication › Attack Protection.
-- [ ] Pertimbangkan **Supabase Pro** (backup harian, tanpa auto-pause) dan aktifkan *Point-in-time recovery* bila perlu.
-- [ ] Jangan jalankan `db:seed` atau `db:reset` terhadap live (seed menolak host non-lokal).
-- [ ] Simpan di password manager: Database password, API key Resend, akun Supabase/Cloudflare/GitHub/Resend, siapa pemiliknya.
+Hapus data uji (nomor `TEST-…`, anggota/registrasi uji) lewat SQL Editor sebelum dipakai nyata.
 
 ---
 
 ## Pemecahan masalah
 
-| Gejala | Penyebab & solusi |
+| Gejala | Penyebab dan solusi |
 |---|---|
-| “Backend belum dikonfigurasi…” | Build variables Cloudflare belum diisi / salah nama / diisi sebagai runtime variable. Perbaiki lalu build ulang. |
-| `Invalid API key` | Key salah salin (spasi/terpotong) atau memakai key milik project lain (lingkungan tertukar). |
-| Login: “Email logins are disabled” | Providers › Email belum **Enabled** (A4). |
-| Daftar akun: “Database error saving new user” / “tidak bisa dipakai membuat akun” | Email belum jadi anggota *approved*, atau sudah punya akun, atau staf belum didaftarkan di `account_provisioning` — perilaku yang benar. |
-| Setelah daftar akun, email konfirmasi tidak datang | SMTP belum dipasang (A6) / domain Resend belum *Verified* / sender bukan di domain terverifikasi / cek folder spam / kena rate limit. |
-| Login: “Email belum dikonfirmasi” | Klik tautan di email konfirmasi, atau pakai tombol *Kirim ulang email konfirmasi* di halaman login. |
-| Tautan konfirmasi/reset membawa ke `localhost` atau ditolak | **Site URL / Redirect URLs** (Bagian D) belum benar. |
-| Approve berhasil tapi “email ke pendaftar gagal dikirim” | Fungsi belum di-deploy, secrets belum diisi (A8), atau Resend menolak (domain belum *Verified* — error 403 hanya boleh ke email pemilik akun; atau `EMAIL_FROM` bukan di domain terverifikasi). Lihat Dashboard → Edge Functions → **Logs**. Setelah diperbaiki, pakai tombol *Kirim ulang email*. |
-| Link di email membawa ke URL salah | `SITE_URL` di secrets Edge Function salah (A8) → `secrets set` ulang. |
-| Tombol Approve/Reject tidak muncul | Akun login berperan `admin`. Hanya `admin_finance` / `superadmin`. Ubah role lewat detail anggota (superadmin › *Ubah Role Akun*). |
-| Form registrasi ulang: “Nomor anggota lama tidak ditemukan” | Nomor belum ada di daftar (menu *Nomor Anggota Lama*), atau salah ketik. |
+| Login: **`Invalid API key`** (Network → `token?grant_type=password` → "Invalid API key") | `NEXT_PUBLIC_SUPABASE_ANON_KEY` di build salah: terpotong, ada spasi, key project lain, atau secret key. Isi ulang di **build variables**, lalu **Retry build**. |
+| Login: "Email belum dikonfirmasi" | User dibuat tanpa *Auto Confirm*. Jalankan: `update auth.users set email_confirmed_at = now() where email = 'emailanda@…';` |
+| Login: "Email atau password salah" | Password salah atau tidak memenuhi aturan. Ubah di Authentication › Users. |
+| Login: "Akun ini tidak aktif atau belum tertaut…" | Profil tidak terbaca: cek migrasi lengkap terpasang dan baris `profiles` ada, `active = true`. |
+| "Backend belum dikonfigurasi…" | Variabel build kosong/salah nama (Cloudflare: harus *build* variables, bukan runtime; cPanel: belum diisi saat `npm run build`). Perbaiki lalu build ulang. |
+| Tautan konfirmasi/reset ke `localhost` atau ditolak | Site URL / Redirect URLs belum benar (Langkah 4). |
+| Email konfirmasi tidak datang | SMTP belum dipasang (Langkah 6), domain Resend belum *Verified*, sender bukan di domain terverifikasi, atau cek spam / rate limit. |
+| Approve berhasil tapi "email ke pendaftar gagal dikirim" | Fungsi belum di-deploy/secrets belum diisi (Langkah 8), atau Resend menolak (domain belum Verified → 403; `EMAIL_FROM` bukan di domain terverifikasi). Lihat Edge Functions → Logs, lalu pakai **Kirim ulang email**. |
+| Link di email membawa ke URL salah | `SITE_URL` secret salah → `secrets set` ulang. |
+| Tombol Approve/Reject tidak muncul | Akun berperan `admin`. Hanya `admin_finance`/`superadmin`. |
+| "Nomor anggota lama tidak ditemukan" | Nomor belum ada di daftar (Langkah 11) atau salah ketik. |
+| Form registrasi: "Isi minimal salah satu akun sosial media" | Isi salah satu dari X / Instagram / TikTok. |
 | Password ditolak padahal 8 karakter | Wajib ada huruf besar, kecil, **dan** angka. |
-| Unggah bukti gagal | Bukan JPG/PNG atau > 5 MB; atau migrasi (bucket) belum diterapkan (A3). |
-| Halaman 404 di `/login` atau `/admin/…` | Build gagal / `out/` kosong. Lihat log build di Cloudflare; pastikan Build command `npm run build` dan `wrangler.toml` ada di root. Aplikasi memakai `trailingSlash: true` (URL berakhiran `/`). |
-| Build gagal / nama Worker beda | Nama Worker di dashboard harus sama dengan `name` di `wrangler.toml` (`ff-membership`). |
-| Deploy CLI memakai akun salah | `npx wrangler whoami`; `npx wrangler logout` lalu `login` ke akun yang benar. |
-| 404 pada halaman detail | Halaman detail memakai query (`/admin/members/detail/?id=…`); jangan dibuka tanpa `?id=`. |
-| Setelah ubah env, tampilan masih lama | `NEXT_PUBLIC_*` ditanam saat build → **build ulang** (Retry build / push commit baru). |
-| `db push` gagal koneksi | Pakai Session pooler (A3). |
-| `db push` / `functions deploy` menyasar project salah | Cek `npx supabase projects list` dan `supabase/.temp/project-ref`; `supabase link` ulang ke ref yang benar; gunakan `--project-ref` eksplisit. |
+| Unggah bukti gagal | Bukan JPG/PNG, > 5 MB, atau migrasi/bucket belum terpasang. |
+| Halaman 404 di `/login` atau `/admin/…` | Build gagal / `out/` kosong (Cloudflare: cek log build). cPanel: isi `out/` harus langsung di Document Root, bukan di dalam folder `out`. URL berakhiran `/`. |
+| Verify Resend gagal | Nama record di cPanel dobel/salah ejaan, atau belum merambat. Cek di Zone Editor; coba lagi beberapa menit kemudian. |
+| `https://membership…` "not secure" / tidak terbuka | cPanel: SSL belum aktif (SSL/TLS Status → Run AutoSSL). Cloudflare: custom domain belum *Active*. |
+| `db push` / `functions deploy` menyasar project salah | `npx supabase projects list`, `supabase link` ulang ke ref yang benar, atau pakai `--project-ref` eksplisit. |
+| Satu komputer, dua akun Supabase/Cloudflare | `npx supabase logout` lalu `login`; `npx wrangler logout` lalu `login`; cek `npx wrangler whoami`. |
 
 ## Update rutin
 
-- **Kode**: `git push` → Cloudflare build & deploy otomatis (per lingkungan/repo); atau `npm run deploy:workers` (C4).
-- **Skema DB**: tambahkan file baru di `supabase/migrations/`, uji lokal (`npm run db:reset && npm run db:test`), lalu
-  `npx supabase db push` **ke pribadi dulu**, uji, baru ke live. **Jangan mengedit migrasi yang sudah di-push**; buat migrasi baru.
-- **Edge Function**: setelah mengubah `supabase/functions/send-status-email/`, jalankan `npx supabase functions deploy send-status-email --project-ref <ref>`
-  untuk tiap lingkungan.
-- **Reset data pribadi**: SQL Editor / Table Editor (hati-hati; tidak ada undo), atau buat project baru. **Jangan** pada live.
+- **Kode**: Cloudflare (opsi A): `git push` → build dan deploy otomatis. cPanel (opsi B): build ulang lalu upload ulang `site.zip`.
+- **Skema DB**: tambah file baru di `supabase/migrations/` → uji lokal (`npm run db:reset && npm run db:test`) → `npx supabase db push`.
+  Jangan mengedit migrasi yang sudah di-push; buat migrasi baru.
+- **Edge Function**: setelah mengubah `supabase/functions/send-status-email/`, jalankan ulang
+  `npx supabase functions deploy send-status-email --project-ref <ref>`.
+
+## Checklist ringkas
+
+- [ ] Project Supabase dibuat, ref + Database password dicatat
+- [ ] `npx supabase link` + `db push` sukses
+- [ ] Auth: Confirm email ON, sign-up ON, password policy, Site URL, Redirect URLs
+- [ ] Resend: domain **Verified**, API key dibuat
+- [ ] SMTP Custom di Supabase + rate limit + 2 template email
+- [ ] `secrets set` (RESEND_API_KEY, EMAIL_FROM, SITE_URL) + `functions deploy send-status-email`
+- [ ] Situs dihosting (opsi A/B/C) dengan variabel Supabase project baru, domain `membership.fritzyforce.my.id` aktif dengan HTTPS
+- [ ] Akun staf dibuat (provisioning + Auto Confirm)
+- [ ] Nomor anggota lama diisi (+ kelebihan bayar)
+- [ ] Uji asap lulus, data uji dihapus

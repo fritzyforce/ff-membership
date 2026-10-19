@@ -74,7 +74,6 @@ function RecruitmentList() {
     <>
       <AdminTopbar
         title="Recruitment Management"
-        subtitle={<p className="text-body-sm">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>}
         actions={
           <>
             <select

@@ -20,7 +20,6 @@ Backend dimigrasi **bertahap ke Supabase**:
 | **Lupa / reset password** (email) | ✅ Supabase Auth |
 | Rekrutmen baru (form, cek status, Recruitment Management admin) | dummy (`localStorage`) — fase berikutnya |
 
-Copy panjang masih Lorem Ipsum.
 
 ## Jalankan
 Butuh **Docker** (Supabase lokal). Pertama kali akan mengunduh image (beberapa menit).
@@ -73,8 +72,12 @@ counter satu baris (bukan `sequence`) sehingga approve yang gagal tidak menghabi
 ditolak (`MEMBER_NUMBER_EXHAUSTED`). Constraint database menolak format lain. Data dummy rekrutmen masih memakai format
 lama `FF-2026-xxxx` sampai fitur rekrutmen dimigrasi.
 
-**Membuat akun staf (admin/superadmin)** — sign-up publik tidak bisa membuat admin. Daftarkan emailnya (sekali pakai),
-lalu buat user (Dashboard › Authentication › Add user, atau Admin API); trigger membuat profile ber-role itu:
+**Membuat akun staf** — sign-up publik tidak bisa membuat staf.
+- **Superadmin lewat aplikasi:** menu **Akun Staf** (`/admin/staff/`, hanya superadmin) → email, nama, role **Admin** / **Admin Finance** → *Buat Akun*.
+  Dikerjakan Edge Function `create-staff-account` (service role hanya di server; pemanggil dicek superadmin; email yang sudah punya akun atau terdaftar sebagai
+  anggota ditolak). Staf menerima email untuk mengatur passwordnya sendiri; daftar staf menyediakan *Kirim ulang email* selama belum pernah login. Superadmin tidak
+  bisa dibuat lewat jalur ini.
+- **Superadmin pertama** (belum ada siapa pun) tetap lewat SQL: daftarkan emailnya (sekali pakai), lalu buat user (Dashboard › Authentication › Add user, atau Admin API); trigger membuat profile ber-role itu:
 ```sql
 insert into public.account_provisioning (email, role, display_name)
 values ('nama@domain.com', 'admin', 'Nama Admin');   -- role: 'admin' | 'admin_finance' | 'superadmin'
@@ -124,7 +127,7 @@ Detail (`/admin/members/detail/?id=`):
   memakai bukti yang sama) untuk bulan pengajuan, jadi bulan itu **tidak** dihitung tunggakan (mis. registrasi Oktober → Oktober lunas).
 - **Kelebihan bayar kas lama** (`legacy_members.prepaid_months`, dalam bulan) melunasi bulan **sesudah** bulan registrasi: 1 bulan → November,
   2 bulan → November + Desember, dst. (maks. 12). Tercatat sebagai pembayaran `paid` asal *Kelebihan bayar kas lama* (tanpa bukti).
-  Diisi admin di menu **Nomor Anggota Lama** (`NOMOR, jumlah bulan` per baris); bisa diperbarui selama nomornya belum registrasi ulang.
+  Diisi admin di menu **Nomor Anggota Lama** (`NOMOR, jumlah bulan, display name Line` per baris); bisa diperbarui selama nomornya belum registrasi ulang.
 - Anggota **tidak memilih periode**. Pembayaran otomatis dihitung untuk **bulan yang belum dibayar paling awal** lebih dulu, jadi tunggakan
   dibayar berurutan dari yang tertua; kelebihan dihitung untuk **bulan ke depan** (maks. 12 bulan dari bulan berjalan).
   Contoh: ditagih sejak Juli, belum bayar, sekarang Oktober → bayar Rp 60.000 = bulan dibayar Juli–September; Rp 100.000 = Juli–November.
@@ -185,7 +188,9 @@ cari nama/nickname/email/kode/nomor lama, pagination server-side. *Review* → d
 terlihat admin. Status publik hanya mengembalikan email pendaftar bila sudah approved, untuk mengisi otomatis halaman Registrasi Akun.
 
 Menu **Nomor Anggota Lama** (`/admin/anggota-lama/`): ringkasan (total / sudah / belum registrasi ulang), tabel dengan filter & pencarian,
-dan *Tambah Nomor* (tempel banyak nomor sekaligus; duplikat dilewati; tercatat di audit log). Admin tidak menghapus/mengubah nomor
+dan *Tambah Nomor* (tempel banyak baris `NOMOR, kelebihan bayar, display name Line`; duplikat dilewati; tercatat di audit log). **Display name Line** (bukan ID Line)
+dipakai anggota untuk mencari nomornya di form registrasi ulang: bila nomor tidak ditemukan, form meminta mencoba display name Line, dan bila masih gagal menghubungi admin.
+Pencocokan tidak peka huruf besar/kecil dan spasi ganda; bila satu display name cocok dengan lebih dari satu anggota, pengajuan ditolak dengan pesan "hubungi admin". Admin tidak menghapus/mengubah nomor
 dari UI — lakukan lewat SQL bila perlu koreksi.
 
 **Email saat approve** — setelah admin Approve, aplikasi memanggil Edge Function `send-status-email` yang mengirim email ke email
@@ -231,7 +236,7 @@ Reset data dummy (bukan data Supabase): tombol **Reset data dummy** di sidebar a
 Halaman detail memakai query param (`?id=`) agar tetap kompatibel dengan static export saat data sudah dinamis.
 
 ## Deploy
-Sama seperti `fritzyforce-nextjs`: `npm run deploy:workers` / `npm run deploy:pages` (Cloudflare), Vercel, atau Netlify (`netlify.toml`). Panduan lengkap bersama Supabase: [docs/deploy-supabase-cloudflare.md](docs/deploy-supabase-cloudflare.md).
+Sama seperti `fritzyforce-nextjs`: `npm run deploy:workers` / `npm run deploy:pages` (Cloudflare), Vercel, atau Netlify (`netlify.toml`). Panduan lengkap bersama Supabase: [docs/deploy-supabase-cloudflare.md](docs/deploy-supabase-cloudflare.md). Domain `membership.fritzyforce.my.id` + Cloudflare Pages: [docs/deploy-cloudflare-pages-domain.md](docs/deploy-cloudflare-pages-domain.md).
 
 ## Pengaturan sementara
 - **Join Us (pendaftaran anggota baru) ditutup**: `RECRUITMENT_OPEN = false` di `lib/config.ts`. Tombol di homepage nonaktif dan

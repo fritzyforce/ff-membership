@@ -110,13 +110,15 @@ export interface ReRegistrationPublicStatus {
 }
 
 /** Hasil pengecekan nomor anggota lama: ok = ada & belum registrasi ulang. */
-export type OldMemberNumberStatus = "ok" | "not_found" | "registered" | "in_use";
+export type OldMemberNumberStatus = "ok" | "not_found" | "ambiguous" | "registered" | "in_use";
 
 /** Baris daftar nomor anggota lama (admin). */
 export interface LegacyMember {
   oldMemberNumber: string;
   /** Kelebihan bayar kas dari data lama, dalam bulan (0–12) */
   prepaidMonths: number;
+  /** Display name Line (bukan ID Line); dipakai mencari nomor lewat form registrasi ulang */
+  lineDisplayName: string;
   isRegistered: boolean;
   registeredAt: string | null;
   /** Anggota hasil registrasi ulang yang memakai nomor ini */

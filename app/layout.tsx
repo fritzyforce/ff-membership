@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     template: "%s — Fritzy Force",
   },
   description:
-    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Portal rekrutmen & anggota Fritzy Force.",
+    "Portal rekrutmen & anggota Fritzy Force.",
   applicationName: "Fritzy Force Member Portal",
   icons: { icon: "/logo.jpg" },
   robots: { index: false, follow: false },

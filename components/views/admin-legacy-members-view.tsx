@@ -76,8 +76,8 @@ function LegacyList() {
             <input
               className="input w-full md:w-[220px]"
               type="search"
-              aria-label="Cari nomor anggota lama"
-              placeholder="Cari nomor anggota lama"
+              aria-label="Cari nomor anggota lama atau display Line"
+              placeholder="Cari nomor / display Line"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -117,6 +117,7 @@ function LegacyList() {
               <thead>
                 <tr>
                   <th>Nomor Anggota Lama</th>
+                  <th>Display Line</th>
                   <th>Kelebihan Bayar Kas</th>
                   <th>Status</th>
                   <th>Anggota Baru</th>
@@ -126,7 +127,7 @@ function LegacyList() {
               <tbody>
                 {data.rows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="text-center">
+                    <td colSpan={6} className="text-center">
                       {counts?.total === 0 && !search && filter === "all"
                         ? "Daftar masih kosong. Klik Tambah Nomor untuk mengisi."
                         : "Tidak ada nomor yang cocok."}
@@ -138,6 +139,7 @@ function LegacyList() {
                     <td className="whitespace-nowrap font-semibold" style={{ color: "var(--gold-100)" }}>
                       {r.oldMemberNumber}
                     </td>
+                    <td>{r.lineDisplayName || "—"}</td>
                     <td className="whitespace-nowrap">
                       {r.prepaidMonths > 0 ? `${r.prepaidMonths} bulan` : "—"}
                     </td>
@@ -199,8 +201,8 @@ function AddForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} noValidate className="card stack mb-6 gap-4">
       <Field
         id="legacy-numbers"
-        label="Nomor anggota lama dan kelebihan bayar kas"
-        help="Satu baris per anggota: NOMOR, kelebihan bayar dalam bulan (0–12; boleh dikosongkan = 0), mis. OLD-001, 2. Bisa ditempel dari Excel/Sheets. Spasi dibuang, huruf dijadikan kapital. Nomor yang sudah ada tetap ada; kelebihan bayarnya diperbarui hanya bila dicantumkan dan nomornya belum registrasi ulang."
+        label="Nomor anggota lama, kelebihan bayar kas, dan display name Line"
+        help="Satu baris per anggota: NOMOR, kelebihan bayar (bulan, 0–12; boleh kosong), display name Line. Contoh: OLD-001, 2, Budi Santoso  /  OLD-002, , Siti Aminah. Bisa ditempel dari Excel/Sheets. Nomor yang sudah ada tetap ada; kelebihan bayar dan display name diperbarui hanya bila dicantumkan dan nomornya belum registrasi ulang. Display name dipakai anggota untuk mencari nomornya di form registrasi ulang."
       >
         <textarea
           id="legacy-numbers"

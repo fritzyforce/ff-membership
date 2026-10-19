@@ -93,7 +93,7 @@ export const SEED_APPLICANTS: Applicant[] = [
     address: "Jl. Ahmad Yani No. 10, Bekasi",
     socialInstagram: "@ilham.f",
     status: "rejected",
-    reviewNote: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+    reviewNote: "",
     createdAt: "2026-09-24T09:15:00.000Z",
   }),
   applicant("0413", "Jasmine Putri", "jasmine.putri", {
