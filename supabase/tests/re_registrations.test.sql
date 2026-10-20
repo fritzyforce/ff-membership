@@ -162,8 +162,8 @@ select set_config('request.jwt.claims',
 select is((select count(*)::int from public.re_registrations where email = 'umar@test.local'), 1,
   'admin melihat re_registrations (RLS)');
 -- nilai persisnya dicek di member_auth.test.sql (data dev ikut memengaruhi counter)
-select matches(public.approve_re_registration(current_setting('test.rid')::uuid), '^FF-\d{3}$',
-  'approve membuat nomor anggota berformat FF-NNN');
+select matches(public.approve_re_registration(current_setting('test.rid')::uuid), '^FRC-\d{3}$',
+  'approve membuat nomor anggota berformat FRC-NNN');
 select is((select email from public.get_re_registration_status(current_setting('test.code'))), 'umar@test.local',
   'status publik: email dibuka setelah approved (untuk prefill Registrasi Akun)');
 select throws_ok($$select public.approve_re_registration(current_setting('test.rid')::uuid)$$,
@@ -171,7 +171,7 @@ select throws_ok($$select public.approve_re_registration(current_setting('test.r
 select throws_ok($$select public.reject_re_registration(current_setting('test.rid')::uuid, 'telat')$$,
   'P0001', 'ALREADY_REVIEWED', 'reject setelah approve ditolak');
 
-select matches(public.approve_re_registration(current_setting('test.ridn')::uuid), '^FF-\d{3}$',
+select matches(public.approve_re_registration(current_setting('test.ridn')::uuid), '^FRC-\d{3}$',
   'approve registrasi tanpa nomor lama & tanpa nama lengkap berhasil');
 
 -- admin: daftar nomor anggota lama

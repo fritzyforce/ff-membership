@@ -14,7 +14,7 @@ Backend dimigrasi **bertahap ke Supabase**:
 | **Nomor anggota lama** (daftar `legacy_members` + halaman cek admin) | ✅ Supabase |
 | **Daftar & login member** (email + password, profil sendiri) | ✅ Supabase Auth |
 | **Login admin / superadmin** | ✅ Supabase Auth (+ tabel `profiles`) |
-| **Penomoran anggota `FF-001`–`FF-999`** | ✅ Supabase |
+| **Penomoran anggota `FRC-001`–`FRC-999`** | ✅ Supabase |
 | **Manajemen anggota (admin/superadmin)** — daftar, detail, edit, status, aksi akun, audit log | ✅ Supabase |
 | **Uang kas** — anggota mengajukan pembayaran, admin cek bukti & approve/reject | ✅ Supabase |
 | **Lupa / reset password** (email) | ✅ Supabase Auth |
@@ -43,11 +43,11 @@ Perintah lain: `npm run db:test` (tes pgTAP RLS/RPC), `npm run db:reset` (migras
 | Superadmin | `superadmin@fritzyforce.test` | `Superadmin123` |
 | Admin (hanya lihat; tidak bisa approve/reject) | `admin@fritzyforce.test` | `Admin12345` |
 | Admin Finance | `finance@fritzyforce.test` | `Finance12345` |
-| Member **FF-001** (Teguh Prakoso) — sudah punya akun | `teguh.prakoso@fritzyforce.test` | `Member12345` |
-| Anggota **FF-002** (Wulan Sari) — **belum** punya akun | `wulan.sari@fritzyforce.test` | buat sendiri di `/register/` |
+| Member **FRC-001** (Teguh Prakoso) — sudah punya akun | `teguh.prakoso@fritzyforce.test` | `Member12345` |
+| Anggota **FRC-002** (Wulan Sari) — **belum** punya akun | `wulan.sari@fritzyforce.test` | buat sendiri di `/register/` |
 
 Semua akun di atas ada di Supabase Auth. Password mengikuti kebijakan server (huruf besar + kecil + angka, min. 8),
-termasuk akun admin. Teguh (FF-001) punya riwayat uang kas contoh; Wulan (FF-002) punya satu pembayaran ditolak + satu menunggu.
+termasuk akun admin. Teguh (FRC-001) punya riwayat uang kas contoh; Wulan (FRC-002) punya satu pembayaran ditolak + satu menunggu.
 
 ## Daftar & login member (backend Supabase)
 **Daftar** — `/register/`: email + password. Hanya email **anggota aktif yang sudah disetujui admin** dan belum punya akun
@@ -67,8 +67,8 @@ Lokal: email masuk ke Mailpit (`http://127.0.0.1:54324`). Produksi butuh SMTP se
 **Akun Saya** — profil dibaca dari Supabase; *Edit Profil* lewat RPC `update_my_member_profile` (nickname, domisili, tanggal lahir, alamat, ID Line, sosmed).
 Riwayat uang kas di halaman itu juga dari Supabase (lihat bagian *Uang kas*).
 
-**Penomoran anggota** — `FF-001` … `FF-999`, berurutan **tanpa celah**, diberikan saat admin Approve. Memakai tabel
-counter satu baris (bukan `sequence`) sehingga approve yang gagal tidak menghabiskan nomor. Setelah `FF-999`, approve
+**Penomoran anggota** — `FRC-001` … `FRC-999` (anggota yang sudah bernomor `FF-NNN` tetap valid), berurutan **tanpa celah**, diberikan saat admin Approve. Memakai tabel
+counter satu baris (bukan `sequence`) sehingga approve yang gagal tidak menghabiskan nomor. Setelah `FRC-999`, approve
 ditolak (`MEMBER_NUMBER_EXHAUSTED`). Constraint database menolak format lain. Data dummy rekrutmen masih memakai format
 lama `FF-2026-xxxx` sampai fitur rekrutmen dimigrasi.
 
@@ -195,7 +195,7 @@ harus ada di tabel, `is_registered = false`, dan tidak sedang dipakai pengajuan 
 
 **Admin** — menu *Registrasi Ulang* (`/admin/registrasi-ulang/`): antrean pending (default), filter status,
 cari nama/nickname/email/kode/nomor lama, pagination server-side. *Review* → detail lengkap + bukti bayar (signed URL 5 menit) →
-**Approve** (membuat anggota + nomor `FF-NNN` secara atomik, menandai nomor lama) atau **Reject**. Catatan review **opsional** dan hanya
+**Approve** (membuat anggota + nomor `FRC-NNN` secara atomik, menandai nomor lama) atau **Reject**. Catatan review **opsional** dan hanya
 terlihat admin. Status publik hanya mengembalikan email pendaftar bila sudah approved, untuk mengisi otomatis halaman Registrasi Akun.
 
 Menu **Anggota Lama** (`/admin/anggota-lama/`): ringkasan (total / sudah / belum registrasi ulang), tabel dengan filter & pencarian
@@ -229,7 +229,7 @@ Data contoh (`db:seed`): nomor lama `OLD-001`…`OLD-010` (`OLD-003` kelebihan b
 1. **Daftar** (`/daftar/`) → dapat kode `REG-…` → status *Menunggu Review*.
 2. Admin **Approve** di Recruitment Management → *Pre-approved*.
 3. Pendaftar buka **Cek Status**, scan QRIS, upload bukti → *Verifikasi Bayar*.
-4. Admin klik **Verifikasi Bayar** → *Approved* + nomor anggota `FF-…` dibuat.
+4. Admin klik **Verifikasi Bayar** → *Approved* + nomor anggota dibuat.
 5. Anggota **Register** dengan email pendaftaran → **Login** → Akun Saya & Bayar Uang Kas.
 6. Uang kas diverifikasi admin di menu **Uang Kas**.
 

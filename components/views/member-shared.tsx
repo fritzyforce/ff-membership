@@ -25,7 +25,6 @@ export function ProfileRows({ member, withBirth = true }: { member: Member; with
       <InfoRow label="Domisili" value={member.domicile || "—"} />
       <InfoRow label="Alamat Lengkap" value={member.address || "—"} />
       <InfoRow label="ID Line" value={member.lineId} />
-      {member.oldMemberNumber && <InfoRow label="Nomor Anggota Lama" value={member.oldMemberNumber} />}
       {socialsOf(member).map((s) => (
         <InfoRow key={s.label} label={s.long} value={s.value} />
       ))}

@@ -41,7 +41,7 @@ export type MemberSource = "recruitment" | "re_registration";
 
 export interface Member {
   id: string;
-  /** Nomor anggota, mis. FF-017 */
+  /** Nomor anggota, mis. FRC-017 */
   memberNumber: string;
   source: MemberSource;
   applicantId: string | null;

@@ -1,4 +1,4 @@
--- pgTAP: sign-up member, RLS anggota, edit profil, penomoran FF-NNN gapless.
+-- pgTAP: sign-up member, RLS anggota, edit profil, penomoran FRC-NNN gapless.
 begin;
 select plan(36);
 
@@ -110,7 +110,7 @@ select ok(not has_function_privilege('anon', 'public.next_member_number()', 'exe
   'next_member_number() tidak bisa dipanggil langsung dari browser');
 reset role;
 
--- ====================================================== penomoran FF-001..FF-999
+-- ====================================================== penomoran FRC-001..FRC-999
 insert into public.re_registrations (code, full_name, email, line_id, proof_path) values
   ('RU-TEST-0001', 'Gap Satu',  'gap1@test.local', 'g1', 'p1'),
   ('RU-TEST-0002', 'Gap Dua',   'gap2@test.local', 'g2', 'p2'),
@@ -127,12 +127,12 @@ set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-0000000000c0","role":"authenticated"}', true);
 
-select is(public.approve_re_registration(current_setting('test.g1')::uuid), 'FF-001',
-  'nomor anggota pertama = FF-001');
+select is(public.approve_re_registration(current_setting('test.g1')::uuid), 'FRC-001',
+  'nomor anggota pertama = FRC-001');
 select throws_ok($$select public.approve_re_registration(current_setting('test.g3')::uuid)$$,
   'P0001', 'EMAIL_ALREADY_MEMBER', 'approve yang gagal ditolak bersih');
-select is(public.approve_re_registration(current_setting('test.g2')::uuid), 'FF-002',
-  'approve gagal TIDAK meninggalkan celah: berikutnya FF-002 (bukan FF-003)');
+select is(public.approve_re_registration(current_setting('test.g2')::uuid), 'FRC-002',
+  'approve gagal TIDAK meninggalkan celah: berikutnya FRC-002 (bukan FRC-003)');
 
 reset role;
 select is((select last_value from public.member_counter), 2, 'counter tepat 2 setelah dua approve sukses');
@@ -141,7 +141,7 @@ update public.member_counter set last_value = 998;
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"00000000-0000-0000-0000-0000000000c0","role":"authenticated"}', true);
-select is(public.approve_re_registration(current_setting('test.g4')::uuid), 'FF-999', 'nomor terakhir = FF-999');
+select is(public.approve_re_registration(current_setting('test.g4')::uuid), 'FRC-999', 'nomor terakhir = FRC-999');
 select throws_ok($$select public.approve_re_registration(current_setting('test.g5')::uuid)$$,
   'P0001', 'MEMBER_NUMBER_EXHAUSTED', 'nomor ke-1000 ditolak (kuota 999 habis)');
 
@@ -151,7 +151,7 @@ select is((select status::text from public.re_registrations where code = 'RU-TES
 select is((select last_value from public.member_counter), 999, 'counter tidak melewati 999');
 select throws_ok($$insert into public.members (member_number, source, full_name, email, line_id)
   values ('FF-1000', 'recruitment', 'X', 'x@test.local', 'x')$$, '23514', null,
-  'constraint format menolak nomor di luar FF-001..FF-999');
+  'constraint format menolak nomor di luar 001..999');
 select throws_ok($$insert into public.members (member_number, source, full_name, email, line_id)
   values ('FF-2026-0001', 'recruitment', 'X', 'x2@test.local', 'x')$$, '23514', null,
   'constraint format menolak format lama FF-YYYY-NNNN');

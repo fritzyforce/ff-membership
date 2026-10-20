@@ -51,7 +51,7 @@ select throws_ok($$select public.approve_dues_payment(gen_random_uuid())$$,
   'P0001', 'NOT_FOUND', 'admin_finance lolos gerbang approve uang kas (id tak dikenal -> NOT_FOUND)');
 select throws_ok($$select public.reject_dues_payment(gen_random_uuid(), 'x')$$,
   'P0001', 'NOT_FOUND', 'admin_finance lolos gerbang reject uang kas');
-select matches(public.approve_re_registration(current_setting('test.rid')::uuid), '^FF-\d{3}$',
+select matches(public.approve_re_registration(current_setting('test.rid')::uuid), '^FRC-\d{3}$',
   'admin_finance bisa approve registrasi ulang');
 
 -- ================================================= daftar akun staf (hanya superadmin)

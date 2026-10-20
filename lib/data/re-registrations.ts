@@ -39,7 +39,7 @@ const ERROR_TEXT: Record<string, string> = {
   FORBIDDEN: "Kamu tidak punya akses untuk aksi ini. Silakan login ulang sebagai admin.",
   NOT_FOUND: "Data registrasi ulang tidak ditemukan.",
   ALREADY_REVIEWED: "Registrasi ulang ini sudah direview oleh admin lain.",
-  MEMBER_NUMBER_EXHAUSTED: "Kuota nomor anggota (FF-001 s/d FF-999) sudah habis. Hubungi pengembang.",
+  MEMBER_NUMBER_EXHAUSTED: "Kuota nomor anggota (FRC-001 s/d FRC-999) sudah habis. Hubungi pengembang.",
 };
 
 const GENERIC_ERROR = "Terjadi kesalahan pada server. Coba lagi beberapa saat.";

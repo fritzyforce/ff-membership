@@ -294,7 +294,7 @@ Nama Anggota | Display Line | Nomor Anggota Lama | Lebih Bayar | (Catatan, opsio
 2. `/login/` dengan akun staf → masuk ke `/admin/members/`.
 3. **Anggota Lama** → **Tambah Data** → tempel dua baris uji, mis. `Tes Satu\tTes Satu\tTEST-001\t1` dan `Tes Dua\tTes Dua\t\t`.
 4. Logout → `/registrasi-ulang/` → isi form (nomor lama `TEST-001` atau display name `Tes Satu`, **minimal satu sosmed**, email Anda sendiri) + unggah bukti JPG/PNG ≤ 5 MB → dapat kode `RU-XXXX-XXXX`.
-5. Login sebagai `admin_finance`/`superadmin` → **Registrasi Ulang** → buka detail → **Approve** → muncul nomor `FF-001` dan pesan email terkirim.
+5. Login sebagai `admin_finance`/`superadmin` → **Registrasi Ulang** → buka detail → **Approve** → muncul nomor `FRC-001` dan pesan email terkirim.
    Cek inbox: ada tombol **Cek Status Registrasi**.
 6. Di detail anggota → **Riwayat Uang Kas**: pembayaran registrasi (bulan ini) + kelebihan bayar (bulan berikutnya), tanpa tunggakan; tombol **Rincian** menampilkan tanggal bayar dan tanggal approve.
 7. Login sebagai `admin` biasa → detail registrasi pending **tanpa** tombol Approve/Reject.
@@ -334,7 +334,7 @@ Hapus data uji (nomor `TEST-…`, anggota/registrasi uji) lewat SQL Editor sebel
 Untuk lingkungan yang **sudah** ter-deploy (staging, lalu live). Kerjakan **staging dulu**, uji, baru live. Ganti `<ref>` dengan project ref lingkungan itu.
 
 **Isi rilis:** QRIS baru · nama lengkap registrasi ulang opsional · tanggal lahir & alamat dihapus dari form · struktur daftar anggota lama baru (display name wajib & unik,
-nomor opsional, nama, catatan, lebih bayar) + impor dari Excel · pencarian lewat display name Line · pembuatan akun staf oleh superadmin · hapus lorem ipsum.
+nomor opsional, nama, catatan, lebih bayar) + impor dari Excel · nomor anggota baru berformat **FRC-NNN** · pencarian lewat display name Line · pembuatan akun staf oleh superadmin · hapus lorem ipsum.
 
 1. **Cek akses ke project yang benar**
    ```bash
@@ -354,7 +354,8 @@ nomor opsional, nama, catatan, lebih bayar) + impor dari Excel · pencarian lewa
    ```bash
    npx supabase db push
    ```
-   Menerapkan migrasi baru (di antaranya `20261023…legacy_line_name_staff` dan `20261024…legacy_members_restructure`). Jawab **Y**. Catatan: kolom
+   Menerapkan migrasi baru (di antaranya `20261023…legacy_line_name_staff`, `20261024…legacy_members_restructure`, dan `20261025…member_number_frc`). Jawab **Y**. Nomor anggota yang sudah terbit (`FF-NNN`) **tidak berubah** dan tetap valid; hanya approve berikutnya yang bernomor `FRC-NNN`, melanjutkan urutan counter yang sudah ada
+   (live yang masih kosong mulai dari `FRC-001`). Catatan: kolom
    `birth_date` dan `address` pada tabel `re_registrations` (pengajuan registrasi ulang) ikut dihapus, jadi datanya hilang; data di tabel `members` tidak berubah.
 4. **Edge Functions** (keduanya; `send-status-email` berubah sedikit, `create-staff-account` baru)
    ```bash
