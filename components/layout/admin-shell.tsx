@@ -23,7 +23,7 @@ const NAV = [
   { href: "/admin/members/", label: "Member Management", Icon: IconUsers },
   { href: "/admin/recruitment/", label: "Recruitment Management", Icon: IconClipboard },
   { href: "/admin/registrasi-ulang/", label: "Registrasi Ulang", Icon: IconUserCheck },
-  { href: "/admin/anggota-lama/", label: "Nomor Anggota Lama", Icon: IconFile },
+  { href: "/admin/anggota-lama/", label: "Anggota Lama", Icon: IconFile },
   { href: "/admin/uang-kas/", label: "Uang Kas", Icon: IconWallet },
   { href: "/admin/staff/", label: "Akun Staf", Icon: IconUserCheck, superadminOnly: true },
 ];

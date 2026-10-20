@@ -128,35 +128,38 @@ async function uploadProof(tint, folder = "re-registrations") {
 // sisanya tetap "belum registrasi ulang" sehingga bisa dipakai menguji form /registrasi-ulang/.
 // prepaid_months = kelebihan bayar kas dari data lama: melunasi bulan SESUDAH bulan registrasi ulang.
 const LEGACY_PREPAID = { "OLD-003": 1, "OLD-009": 2 };
-// display name Line (bukan ID Line): dipakai anggota mencari nomornya di form registrasi ulang. OLD-009/OLD-010 sengaja kembar.
+// Display name Line (bukan ID Line) = kunci baris daftar anggota lama (wajib & unik); nomor opsional.
+// Dipakai anggota mencari datanya di form registrasi ulang bila nomor tidak ditemukan.
 const LEGACY_LINE_NAMES = {
-  "OLD-001": "Rizky Aditya", "OLD-002": "Sari W", "OLD-007": "Rafi Mahendra", "OLD-008": "Salsa Bella",
-  "OLD-010": "Kembar Satu",
+  "OLD-001": "Rizky Aditya", "OLD-002": "Sari W", "OLD-003": "Teguh P", "OLD-004": "Wulan S", "OLD-005": "Dewi A",
+  "OLD-006": "Bayu P", "OLD-007": "Rafi Mahendra", "OLD-008": "Salsa Bella", "OLD-009": "Citra L", "OLD-010": "Kembar Satu",
 };
-const LEGACY_NUMBERS = Array.from({ length: 10 }, (_, i) => `OLD-${String(i + 1).padStart(3, "0")}`);
+const LEGACY_NUMBERS = Object.keys(LEGACY_LINE_NAMES);
 
 async function seedLegacyMembers() {
   const { error } = await sb.from("legacy_members").upsert(
     LEGACY_NUMBERS.map((old_member_number) => ({
       old_member_number,
       prepaid_months: LEGACY_PREPAID[old_member_number] ?? 0,
-      line_display_name: LEGACY_LINE_NAMES[old_member_number] ?? "",
+      line_display_name: LEGACY_LINE_NAMES[old_member_number],
     })),
     { onConflict: "old_member_number", ignoreDuplicates: true },
   );
   if (error) throw error;
-  // run ulang di DB yang sudah ada: perbarui kelebihan bayar untuk nomor yang belum registrasi ulang
-  for (const [number, months] of Object.entries(LEGACY_PREPAID)) {
-    const { error: uErr } = await sb.from("legacy_members").update({ prepaid_months: months })
+  // anggota "reset" / "ex admin": tanpa nomor lama (hanya display name + catatan)
+  const { error: nErr } = await sb.from("legacy_members").upsert(
+    [{ line_display_name: "Tanpa Nomor", note: "reset" }],
+    { onConflict: "old_member_number", ignoreDuplicates: true },
+  ).select();
+  if (nErr && !/duplicate|unique/i.test(nErr.message)) throw nErr;
+  // run ulang di DB yang sudah ada: perbarui kelebihan bayar & display name untuk yang belum registrasi ulang
+  for (const number of LEGACY_NUMBERS) {
+    const { error: uErr } = await sb.from("legacy_members")
+      .update({ prepaid_months: LEGACY_PREPAID[number] ?? 0, line_display_name: LEGACY_LINE_NAMES[number] })
       .eq("old_member_number", number).eq("is_registered", false);
     if (uErr) throw uErr;
   }
-  for (const [number, name] of Object.entries(LEGACY_LINE_NAMES)) {
-    const { error: nErr } = await sb.from("legacy_members").update({ line_display_name: name })
-      .eq("old_member_number", number).eq("is_registered", false);
-    if (nErr) throw nErr;
-  }
-  console.log(`✓ nomor anggota lama  ${LEGACY_NUMBERS[0]} … ${LEGACY_NUMBERS.at(-1)}  (kelebihan bayar: ${JSON.stringify(LEGACY_PREPAID)})`);
+  console.log(`✓ daftar anggota lama  ${LEGACY_NUMBERS.length} nomor + 1 tanpa nomor  (kelebihan bayar: ${JSON.stringify(LEGACY_PREPAID)})`);
 }
 
 /** Mirror approve_re_registration: pembayaran registrasi = kas bulan ini; kelebihan bayar = bulan berikutnya. */
@@ -211,7 +214,6 @@ async function seedReRegistrations(reviewerId) {
       p_full_name: s.name, p_nickname: s.nick, p_email: s.email, p_line_id: s.line,
       p_domicile: s.domicile, p_old_member_number: s.old, p_proof_path: proofPath,
       p_social_x: s.socialX ?? "", p_social_instagram: s.socialInstagram ?? "", p_social_tiktok: s.socialTiktok ?? "",
-      p_address: s.address ?? "", p_birth_date: s.birthDate ?? null,
     });
     if (error) throw error;
 

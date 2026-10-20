@@ -15,7 +15,7 @@ select is((select role::text from public.profiles where id = '00000000-0000-0000
   'admin_finance', 'akun staf bisa dibuat dengan role admin_finance');
 
 -- registrasi ulang pending (diisi langsung sebagai postgres)
-insert into public.legacy_members (old_member_number) values ('RLS-001');
+insert into public.legacy_members (old_member_number, line_display_name) values ('RLS-001', 'Rls Satu');
 insert into public.re_registrations (code, full_name, nickname, email, line_id, domicile, old_member_number, proof_path)
 values ('RU-ROLE-0001', 'Role Test', 'R', 'role@test.local', 'r', 'Jakarta', 'RLS-001', 'p-role');
 select set_config('test.rid', (select id::text from public.re_registrations where code = 'RU-ROLE-0001'), true);
@@ -35,7 +35,7 @@ select throws_ok($$select public.approve_dues_payment(gen_random_uuid())$$,
   '42501', 'FORBIDDEN', 'admin biasa tidak bisa approve uang kas');
 select throws_ok($$select public.reject_dues_payment(gen_random_uuid(), 'x')$$,
   '42501', 'FORBIDDEN', 'admin biasa tidak bisa reject uang kas');
-select lives_ok($$select public.admin_add_legacy_members('[{"number":"RLS-002","prepaid":1}]'::jsonb)$$,
+select lives_ok($$select public.admin_add_legacy_members('[{"line_name":"Rls Dua","number":"RLS-002","prepaid":1}]'::jsonb)$$,
   'admin biasa tetap bisa mengelola data lain (nomor anggota lama)');
 
 -- ============================================================ superadmin

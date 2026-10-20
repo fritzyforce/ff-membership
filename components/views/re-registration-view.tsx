@@ -21,8 +21,6 @@ type Values = {
   socialX: string;
   socialInstagram: string;
   socialTiktok: string;
-  address: string;
-  birthDate: string;
 };
 type Errors = Partial<Record<keyof Values | "proof" | "social", string>>;
 
@@ -36,8 +34,6 @@ const EMPTY: Values = {
   socialX: "",
   socialInstagram: "",
   socialTiktok: "",
-  address: "",
-  birthDate: "",
 };
 
 const OLD_NUMBER_PROBLEM: Record<Exclude<OldMemberNumberStatus, "ok">, string> = {
@@ -48,14 +44,12 @@ const OLD_NUMBER_PROBLEM: Record<Exclude<OldMemberNumberStatus, "ok">, string> =
   in_use: "Nomor anggota lama ini sedang dipakai pada pengajuan lain yang menunggu review.",
 };
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
 
 // Validasi akhir ada di database (RPC submit_re_registration); ini hanya umpan balik cepat.
 function validate(v: Values, file: File | null): Errors {
   const e: Errors = {};
   if (!v.email.trim()) e.email = "Email wajib diisi.";
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) e.email = "Format email tidak valid.";
-  if (!v.fullName.trim()) e.fullName = "Nama lengkap wajib diisi.";
   if (!v.nickname.trim()) e.nickname = "Nickname wajib diisi.";
   if (!v.lineId.trim()) e.lineId = "ID Line wajib diisi.";
   if (!v.domicile.trim()) e.domicile = "Domisili wajib diisi.";
@@ -63,7 +57,6 @@ function validate(v: Values, file: File | null): Errors {
   if (!v.socialX.trim() && !v.socialInstagram.trim() && !v.socialTiktok.trim()) {
     e.social = "Isi minimal salah satu akun sosial media (X, Instagram, atau TikTok).";
   }
-  if (v.birthDate && v.birthDate > todayIso()) e.birthDate = "Tanggal lahir tidak boleh di masa depan.";
   if (!file) e.proof = "Upload bukti pembayaran uang kas.";
   return e;
 }
@@ -174,7 +167,7 @@ export default function ReRegistrationView() {
           </Field>
 
           <div className="grid gap-[18px] lg:grid-cols-2 lg:gap-5">
-            <Field id="ru-fullName" label="Nama Lengkap" required error={errors.fullName}>
+            <Field id="ru-fullName" label="Nama Lengkap (opsional)" error={errors.fullName}>
               <input className="input" type="text" placeholder="Sesuai identitas resmi" autoComplete="name" {...bind("fullName")} />
             </Field>
             <Field id="ru-nickname" label="Nickname" required error={errors.nickname}>
@@ -208,21 +201,6 @@ export default function ReRegistrationView() {
               onBlur={verifyOldNumber}
             />
           </Field>
-
-          <fieldset className="stack m-0 gap-[18px] border-0 p-0 lg:gap-5">
-            <legend className="text-label p-0 text-gold-100">Data tambahan (opsional)</legend>
-
-            <div className="grid gap-[18px] lg:grid-cols-2 lg:gap-5">
-              <Field id="ru-birthDate" label="Tanggal Lahir" error={errors.birthDate}>
-                <input className="input" type="date" max={todayIso()} autoComplete="bday" {...bind("birthDate")} />
-              </Field>
-            </div>
-
-            <Field id="ru-address" label="Alamat Lengkap" error={errors.address}>
-              <textarea className="input" rows={2} maxLength={300} placeholder="Alamat lengkap" autoComplete="street-address" {...bind("address")} />
-            </Field>
-
-          </fieldset>
 
           <fieldset className="stack m-0 gap-[10px] border-0 p-0">
             <legend className="field-label p-0">

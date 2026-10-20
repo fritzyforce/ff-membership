@@ -83,9 +83,6 @@ export interface ReRegistration {
   socialX: string;
   socialInstagram: string;
   socialTiktok: string;
-  address: string;
-  /** ISO date (YYYY-MM-DD) atau "" */
-  birthDate: string;
   /** Nomor anggota lama yang diklaim pendaftar (null pada baris sebelum field ini ada) */
   oldMemberNumber: string | null;
   /** Path bukti bayar di bucket privat payment-proofs */
@@ -114,7 +111,13 @@ export type OldMemberNumberStatus = "ok" | "not_found" | "ambiguous" | "register
 
 /** Baris daftar nomor anggota lama (admin). */
 export interface LegacyMember {
-  oldMemberNumber: string;
+  id: string;
+  /** Nomor anggota lama; null untuk anggota "reset" / "ex admin" */
+  oldMemberNumber: string | null;
+  /** Nama anggota / admin (opsional) */
+  memberName: string;
+  /** Catatan status, mis. "reset" atau "ex admin" */
+  note: string;
   /** Kelebihan bayar kas dari data lama, dalam bulan (0–12) */
   prepaidMonths: number;
   /** Display name Line (bukan ID Line); dipakai mencari nomor lewat form registrasi ulang */

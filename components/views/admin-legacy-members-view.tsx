@@ -51,11 +51,11 @@ function LegacyList() {
   return (
     <>
       <AdminTopbar
-        title="Nomor Anggota Lama"
+        title="Anggota Lama"
         subtitle={
           <p className="text-body-sm">
-            Daftar nomor anggota lama yang boleh registrasi ulang. Nomor berstatus{" "}
-            <em>sudah registrasi ulang</em> setelah admin menyetujui pengajuannya.
+            Daftar anggota lama yang boleh registrasi ulang. Berstatus <em>sudah registrasi ulang</em> setelah admin
+            menyetujui pengajuannya.
           </p>
         }
         actions={
@@ -76,8 +76,8 @@ function LegacyList() {
             <input
               className="input w-full md:w-[220px]"
               type="search"
-              aria-label="Cari nomor anggota lama atau display Line"
-              placeholder="Cari nomor / display Line"
+              aria-label="Cari anggota lama"
+              placeholder="Cari display Line / nama / nomor"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -85,7 +85,7 @@ function LegacyList() {
               }}
             />
             <button type="button" className="btn btn-primary" onClick={() => setAdding((a) => !a)}>
-              {adding ? "Tutup" : "Tambah Nomor"}
+              {adding ? "Tutup" : "Tambah Data"}
             </button>
           </>
         }
@@ -93,7 +93,7 @@ function LegacyList() {
 
       {counts && (
         <div className="mb-6 grid grid-cols-3 gap-3">
-          <Stat label="Total nomor" value={counts.total} />
+          <Stat label="Total anggota lama" value={counts.total} />
           <Stat label="Sudah registrasi ulang" value={counts.registered} />
           <Stat label="Belum registrasi ulang" value={counts.unregistered} />
         </div>
@@ -116,9 +116,11 @@ function LegacyList() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Nomor Anggota Lama</th>
                   <th>Display Line</th>
-                  <th>Kelebihan Bayar Kas</th>
+                  <th>Nama</th>
+                  <th>Nomor Anggota Lama</th>
+                  <th>Catatan</th>
+                  <th>Lebih Bayar</th>
                   <th>Status</th>
                   <th>Anggota Baru</th>
                   <th>Registrasi Ulang</th>
@@ -127,19 +129,21 @@ function LegacyList() {
               <tbody>
                 {data.rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center">
+                    <td colSpan={8} className="text-center">
                       {counts?.total === 0 && !search && filter === "all"
-                        ? "Daftar masih kosong. Klik Tambah Nomor untuk mengisi."
-                        : "Tidak ada nomor yang cocok."}
+                        ? "Daftar masih kosong. Klik Tambah Data untuk mengisi."
+                        : "Tidak ada data yang cocok."}
                     </td>
                   </tr>
                 )}
                 {data.rows.map((r) => (
-                  <tr key={r.oldMemberNumber}>
-                    <td className="whitespace-nowrap font-semibold" style={{ color: "var(--gold-100)" }}>
-                      {r.oldMemberNumber}
+                  <tr key={r.id}>
+                    <td className="font-semibold" style={{ color: "var(--gold-100)" }}>
+                      {r.lineDisplayName}
                     </td>
-                    <td>{r.lineDisplayName || "—"}</td>
+                    <td>{r.memberName || "—"}</td>
+                    <td className="whitespace-nowrap">{r.oldMemberNumber ?? "—"}</td>
+                    <td className="whitespace-nowrap">{r.note || "—"}</td>
                     <td className="whitespace-nowrap">
                       {r.prepaidMonths > 0 ? `${r.prepaidMonths} bulan` : "—"}
                     </td>
@@ -201,8 +205,8 @@ function AddForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} noValidate className="card stack mb-6 gap-4">
       <Field
         id="legacy-numbers"
-        label="Nomor anggota lama, kelebihan bayar kas, dan display name Line"
-        help="Satu baris per anggota: NOMOR, kelebihan bayar (bulan, 0–12; boleh kosong), display name Line. Contoh: OLD-001, 2, Budi Santoso  /  OLD-002, , Siti Aminah. Bisa ditempel dari Excel/Sheets. Nomor yang sudah ada tetap ada; kelebihan bayar dan display name diperbarui hanya bila dicantumkan dan nomornya belum registrasi ulang. Display name dipakai anggota untuk mencari nomornya di form registrasi ulang."
+        label="Data anggota lama (tempel dari Excel / Sheets)"
+        help="Satu baris per anggota, kolom dipisah tab: Nama Anggota | Display Line (wajib) | Nomor Anggota Lama | Lebih Bayar (mis. 2 bulan). Nomor boleh kosong; tulisan seperti reset / ex admin di kolom nomor dijadikan catatan. Baris judul boleh ikut ditempel. Baris yang display name-nya sudah ada hanya diperbarui pada kolom yang terisi dan selama belum registrasi ulang. Display name (bukan ID Line) dipakai anggota untuk mencari datanya di form registrasi ulang."
       >
         <textarea
           id="legacy-numbers"
@@ -215,12 +219,12 @@ function AddForm({ onDone }: { onDone: () => void }) {
       {error && <Notice tone="error">{error}</Notice>}
       {result && (
         <Notice tone={result.invalid > 0 ? "error" : "success"}>
-          {result.added} nomor ditambahkan, {result.updated} kelebihan bayar diperbarui, {result.duplicate} tidak berubah
-          {result.invalid > 0 ? `, ${result.invalid} dilewati karena tidak valid (nomor: huruf, angka, . _ / -, maks. 30 karakter; kelebihan bayar: angka 0–12)` : ""}.
+          {result.added} baris ditambahkan, {result.updated} diperbarui, {result.duplicate} tidak berubah
+          {result.invalid > 0 ? `, ${result.invalid} dilewati karena tidak valid (display name kosong/ganda, nomor tidak valid atau sudah dipakai baris lain, atau lebih bayar bukan angka 0–12)` : ""}.
         </Notice>
       )}
       <button type="submit" className="btn btn-primary self-start" disabled={busy}>
-        {busy ? "Menyimpan…" : "Simpan Nomor"}
+        {busy ? "Menyimpan…" : "Simpan Data"}
       </button>
     </form>
   );

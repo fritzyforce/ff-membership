@@ -16,21 +16,19 @@ import type {
 } from "@/lib/types";
 
 const ERROR_TEXT: Record<string, string> = {
-  INVALID_NAME: "Nama lengkap tidak valid (maksimal 120 karakter).",
+  INVALID_NAME: "Nama lengkap maksimal 120 karakter.",
   INVALID_NICKNAME: "Nickname tidak valid (maksimal 60 karakter).",
   INVALID_EMAIL: "Format email tidak valid.",
   INVALID_LINE_ID: "ID Line tidak valid (maksimal 60 karakter).",
   INVALID_DOMICILE: "Domisili tidak valid (maksimal 100 karakter).",
   INVALID_SOCIAL: "Username sosial media maksimal 60 karakter.",
   SOCIAL_REQUIRED: "Isi minimal salah satu akun sosial media (X, Instagram, atau TikTok).",
-  INVALID_ADDRESS: "Alamat lengkap maksimal 300 karakter.",
-  INVALID_BIRTH_DATE: "Tanggal lahir tidak valid.",
   INVALID_OLD_NUMBER: "Nomor anggota lama wajib diisi.",
   OLD_NUMBER_NOT_FOUND:
     "Nomor anggota lama tidak ditemukan. Coba masukkan display name Line (bukan ID Line). Jika masih terjadi kesalahan, silakan hubungi admin.",
   OLD_NUMBER_AMBIGUOUS:
     "Display name Line itu cocok dengan lebih dari satu anggota lama. Silakan hubungi admin.",
-  OLD_NUMBER_ALREADY_REGISTERED: "Nomor anggota lama ini sudah melakukan registrasi ulang.",
+  OLD_NUMBER_ALREADY_REGISTERED: "Data anggota lama ini sudah melakukan registrasi ulang.",
   OLD_NUMBER_IN_USE:
     "Nomor anggota lama ini sedang dipakai pada pengajuan registrasi ulang lain yang menunggu review.",
   INVALID_PROOF: "Bukti pembayaran tidak valid. Unggah ulang file JPG/PNG.",
@@ -66,8 +64,6 @@ interface Row {
   social_x: string;
   social_instagram: string;
   social_tiktok: string;
-  address: string;
-  birth_date: string | null;
   old_member_number: string | null;
   proof_path: string;
   status: ReRegistrationStatus;
@@ -91,8 +87,6 @@ function fromRow(r: Row): ReRegistration {
     socialX: r.social_x,
     socialInstagram: r.social_instagram,
     socialTiktok: r.social_tiktok,
-    address: r.address,
-    birthDate: r.birth_date ?? "",
     oldMemberNumber: r.old_member_number,
     proofPath: r.proof_path,
     status: r.status,
@@ -113,15 +107,12 @@ export interface ReRegistrationInput {
   nickname: string;
   lineId: string;
   domicile: string;
-  /** Nomor anggota lama (wajib; harus ada di daftar & belum registrasi ulang) */
+  /** Nomor anggota lama ATAU display name Line (wajib; harus ada di daftar & belum registrasi ulang) */
   oldMemberNumber: string;
   /** Opsional — string kosong bila tidak diisi */
   socialX: string;
   socialInstagram: string;
   socialTiktok: string;
-  address: string;
-  /** YYYY-MM-DD atau "" */
-  birthDate: string;
 }
 
 export interface OldNumberCheck {
@@ -158,8 +149,6 @@ export async function submitReRegistration(input: ReRegistrationInput, proof: Fi
     p_social_x: input.socialX,
     p_social_instagram: input.socialInstagram,
     p_social_tiktok: input.socialTiktok,
-    p_address: input.address,
-    p_birth_date: input.birthDate || null,
     p_proof_path: path,
   });
   if (error) throw toDataError(error);

@@ -15,7 +15,7 @@ import {
 } from "@/lib/data/re-registrations";
 import { FINANCE_ONLY_NOTICE, canReviewFinance } from "@/lib/auth";
 import { notifyReRegistrationReviewed } from "@/lib/email/notify";
-import { RE_REGISTRATION_STATUS, formatDateLong, formatDateShort, socialsOf } from "@/lib/format";
+import { RE_REGISTRATION_STATUS, formatDateShort, socialsOf } from "@/lib/format";
 import { useData } from "@/lib/hooks";
 import type { ReRegistration } from "@/lib/types";
 
@@ -66,7 +66,7 @@ function DetailBody({ item, canReview, onChanged }: { item: ReRegistration; canR
   const pending = item.status === "pending" && canReview;
 
   const approve = async () => {
-    if (!window.confirm(`Approve registrasi ulang ${item.fullName}? Anggota baru akan dibuat.`)) return;
+    if (!window.confirm(`Approve registrasi ulang ${item.fullName || item.nickname}? Anggota baru akan dibuat.`)) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -104,7 +104,7 @@ function DetailBody({ item, canReview, onChanged }: { item: ReRegistration; canR
   };
 
   const reject = async () => {
-    if (!window.confirm(`Reject registrasi ulang ${item.fullName}?`)) return;
+    if (!window.confirm(`Reject registrasi ulang ${item.fullName || item.nickname}?`)) return;
     setBusy(true);
     setActionError(null);
     try {
@@ -122,7 +122,7 @@ function DetailBody({ item, canReview, onChanged }: { item: ReRegistration; canR
   return (
     <>
       <AdminTopbar
-        title={item.fullName}
+        title={item.fullName || item.nickname}
         subtitle={
           <Badge tone={status.badge} dot={item.status === "rejected"}>
             {item.code} · {status.label}
@@ -186,8 +186,6 @@ function DetailBody({ item, canReview, onChanged }: { item: ReRegistration; canR
           {socialsOf(item).map((s) => (
             <Info key={s.label} label={s.long} value={s.value} />
           ))}
-          <Info label="Alamat Lengkap" value={item.address} />
-          <Info label="Tanggal Lahir" value={item.birthDate ? formatDateLong(item.birthDate) : ""} />
           <Info label="Diajukan" value={formatDateTime(item.createdAt)} />
         </section>
         <ProofCard path={item.proofPath} title="Bukti Pembayaran Uang Kas" />

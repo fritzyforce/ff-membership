@@ -109,8 +109,8 @@ export function QrisImage({ className = "" }: { className?: string }) {
     <img
       src={QRIS_SRC}
       alt="Kode QRIS Fritzy Force"
-      width={1400}
-      height={1972}
+      width={1136}
+      height={1600}
       className={`h-auto w-full rounded-md bg-white ${className}`}
     />
   );

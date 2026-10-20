@@ -115,7 +115,7 @@ function ReRegistrationList() {
                       <td className="whitespace-nowrap font-semibold" style={{ color: "var(--gold-100)" }}>
                         {r.code}
                       </td>
-                      <td className="whitespace-nowrap">{r.fullName}</td>
+                      <td className="whitespace-nowrap">{r.fullName || r.nickname}</td>
                       <td>{r.email}</td>
                       <td className="hidden whitespace-nowrap xl:table-cell">{r.oldMemberNumber ?? "—"}</td>
                       <td className="whitespace-nowrap">{formatDateShort(r.createdAt)}</td>

@@ -271,30 +271,29 @@ Staf menerima email untuk mengatur passwordnya sendiri (tombol *Kirim ulang emai
 `create-staff-account` sudah di-deploy (Langkah 8) dan SMTP Resend aktif (Langkah 6). Email yang sudah jadi anggota ditolak: minta ia membuat akun anggota lalu ubah
 role-nya lewat detail anggota.
 
-## Langkah 11 — Isi daftar nomor anggota lama
+## Langkah 11 — Isi daftar anggota lama
 
-Login sebagai staf → menu **Nomor Anggota Lama** → **Tambah Nomor**. Satu baris per anggota:
+Login sebagai staf → menu **Anggota Lama** → **Tambah Data**. **Tempel langsung dari Excel / Google Sheets**: satu baris per anggota, kolom dipisah tab, urutan:
 
 ```
-NOMOR, kelebihan bayar kas (bulan), display name Line
-OLD-001, 2, Budi Santoso
-OLD-002, , Siti Aminah
-OLD-003, 1
+Nama Anggota | Display Line | Nomor Anggota Lama | Lebih Bayar | (Catatan, opsional)
 ```
 
-- Kelebihan bayar boleh dikosongkan (= 0), maksimal 12 bulan. Display name Line (bukan ID Line) boleh dikosongkan. Bisa ditempel dari Excel/Sheets (pemisah koma atau tab).
-- Display name Line dipakai anggota untuk mencari nomornya di form registrasi ulang bila nomor tidak ditemukan. Bila dua anggota punya display name yang sama, form
-  meminta anggota menghubungi admin.
-- Aturan: pembayaran registrasi ulang dihitung kas **bulan registrasi**; kelebihan bayar 1 bulan melunasi bulan berikutnya,
-  2 bulan = dua bulan berikutnya, dst.
-- Nomor yang sudah registrasi ulang tidak bisa diubah. Tanpa daftar ini, tidak ada yang bisa registrasi ulang.
+- **Display Line wajib** (display name Line, bukan ID Line; unik). Kolom lain opsional.
+- **Nomor** boleh kosong (anggota "reset" / "ex admin"). Tulisan tanpa angka di kolom nomor (mis. `reset`, `ex admin`) otomatis dijadikan catatan dan nomornya dikosongkan.
+- **Lebih Bayar**: `2 bulan` atau `2` (0–12). Baris judul kolom boleh ikut ditempel.
+- File siap tempel dari spreadsheet yang sudah dikonversi: `anggota-lama-import.tsv` (tidak disimpan di repo karena berisi data pribadi). Salin **seluruh isi** file → tempel ke kotak → **Simpan Data**. Hasil yang diharapkan: `137 baris ditambahkan … 0 tidak valid`.
+- Mengimpor ulang aman: baris yang display name-nya sudah ada hanya diperbarui pada kolom yang terisi, selama belum registrasi ulang.
+- Display name dipakai anggota untuk mencari datanya di form registrasi ulang bila nomor tidak ditemukan.
+- Aturan uang kas: pembayaran registrasi ulang dihitung kas **bulan registrasi**; lebih bayar 1 bulan melunasi bulan berikutnya, 2 bulan = dua bulan berikutnya, dst.
+- Data yang sudah registrasi ulang tidak bisa diubah. Tanpa daftar ini, tidak ada yang bisa registrasi ulang.
 
 ## Langkah 12 — Uji asap (smoke test)
 
 1. Buka situs → halaman utama tampil; **Registrasi Ulang** aktif, **Join Us Now!** nonaktif.
 2. `/login/` dengan akun staf → masuk ke `/admin/members/`.
-3. **Nomor Anggota Lama** → tambah `TEST-001, 1` dan `TEST-002`.
-4. Logout → `/registrasi-ulang/` → isi form (nomor lama `TEST-001`, **minimal satu sosmed**, email Anda sendiri) + unggah bukti JPG/PNG ≤ 5 MB → dapat kode `RU-XXXX-XXXX`.
+3. **Anggota Lama** → **Tambah Data** → tempel dua baris uji, mis. `Tes Satu\tTes Satu\tTEST-001\t1` dan `Tes Dua\tTes Dua\t\t`.
+4. Logout → `/registrasi-ulang/` → isi form (nomor lama `TEST-001` atau display name `Tes Satu`, **minimal satu sosmed**, email Anda sendiri) + unggah bukti JPG/PNG ≤ 5 MB → dapat kode `RU-XXXX-XXXX`.
 5. Login sebagai `admin_finance`/`superadmin` → **Registrasi Ulang** → buka detail → **Approve** → muncul nomor `FF-001` dan pesan email terkirim.
    Cek inbox: ada tombol **Cek Status Registrasi**.
 6. Di detail anggota → **Riwayat Uang Kas**: pembayaran registrasi (bulan ini) + kelebihan bayar (bulan berikutnya), tanpa tunggakan; tombol **Rincian** menampilkan tanggal bayar dan tanggal approve.
@@ -330,13 +329,64 @@ Hapus data uji (nomor `TEST-…`, anggota/registrasi uji) lewat SQL Editor sebel
 | `db push` / `functions deploy` menyasar project salah | `npx supabase projects list`, `supabase link` ulang ke ref yang benar, atau pakai `--project-ref` eksplisit. |
 | Satu komputer, dua akun Supabase/Cloudflare | `npx supabase logout` lalu `login`; `npx wrangler logout` lalu `login`; cek `npx wrangler whoami`. |
 
+## Rilis terbaru: apa yang harus dijalankan (urut)
+
+Untuk lingkungan yang **sudah** ter-deploy (staging, lalu live). Kerjakan **staging dulu**, uji, baru live. Ganti `<ref>` dengan project ref lingkungan itu.
+
+**Isi rilis:** QRIS baru · nama lengkap registrasi ulang opsional · tanggal lahir & alamat dihapus dari form · struktur daftar anggota lama baru (display name wajib & unik,
+nomor opsional, nama, catatan, lebih bayar) + impor dari Excel · pencarian lewat display name Line · pembuatan akun staf oleh superadmin · hapus lorem ipsum.
+
+1. **Cek akses ke project yang benar**
+   ```bash
+   cd /Users/brian/projects/ff-membership
+   npx supabase login
+   npx supabase link --project-ref <ref>
+   npx supabase migration list          # lihat migrasi mana yang belum ada di kolom Remote
+   ```
+2. **(Hanya bila ada data uji di daftar anggota lama)** bersihkan dulu lewat SQL Editor, supaya tidak bercampur dengan data asli. Migrasi struktur baru
+   memberi baris lama display name sementara = nomornya; baris uji sebaiknya dihapus. Contoh (periksa dulu isinya dengan `select`):
+   ```sql
+   select * from public.legacy_members where not is_registered;          -- lihat dulu
+   delete from public.legacy_members where not is_registered and old_member_number like 'TEST-%';
+   ```
+   Jangan menghapus baris yang sudah `is_registered = true`.
+3. **Database (migrasi)**
+   ```bash
+   npx supabase db push
+   ```
+   Menerapkan migrasi baru (di antaranya `20261023…legacy_line_name_staff` dan `20261024…legacy_members_restructure`). Jawab **Y**. Catatan: kolom
+   `birth_date` dan `address` pada tabel `re_registrations` (pengajuan registrasi ulang) ikut dihapus, jadi datanya hilang; data di tabel `members` tidak berubah.
+4. **Edge Functions** (keduanya; `send-status-email` berubah sedikit, `create-staff-account` baru)
+   ```bash
+   npx supabase functions deploy send-status-email --project-ref <ref>
+   npx supabase functions deploy create-staff-account --project-ref <ref>
+   ```
+   Secrets tidak berubah (`SITE_URL`, `EMAIL_FROM`, `RESEND_API_KEY` sudah ada). `create-staff-account` memakai service role yang disuntik otomatis.
+5. **Template email Auth** (Dashboard Supabase → Authentication › Emails › Templates → **Reset Password**): tempel ulang isi `supabase/templates/recovery.html`
+   dan ubah subjek menjadi `Atur password akun Fritzy Force`. (Dipakai juga untuk email "atur password" staf baru.)
+6. **Kode situs**: commit dan push, lalu tunggu build Cloudflare selesai (QRIS baru ikut terbawa: `public/qris.jpg`).
+   ```bash
+   git add -A
+   git status            # pastikan tidak ada .env / supabase/functions/.env / file import yang ikut
+   git commit -m "Daftar anggota lama baru, QRIS baru, registrasi ulang disederhanakan"
+   git push
+   ```
+   Variabel build Cloudflare **tidak berubah**. Bila situs tidak di-deploy otomatis, jalankan *Retry deployment*.
+7. **Impor data anggota lama**: login sebagai staf → **Anggota Lama** → **Tambah Data** → tempel isi `anggota-lama-import.tsv` → **Simpan Data**
+   (hasil: 137 baris ditambahkan, 0 tidak valid).
+8. **Uji cepat**
+   - `/registrasi-ulang/`: nama lengkap bertanda opsional, tidak ada tanggal lahir/alamat, QRIS baru tampil; isi display name Line (mis. milik satu anggota) → muncul "Ditemukan…"; isi nama ngawur → pesan "hubungi admin".
+   - Login superadmin → menu **Akun Staf** → buat satu akun Admin uji → email "Atur password" masuk; hapus akunnya di Dashboard bila hanya uji.
+   - Approve satu registrasi uji → anggota terbentuk (nama dari daftar lama bila nama lengkap dikosongkan), email "disetujui" terkirim.
+9. **Live**: ulangi langkah 1–8 dengan project ref, akun Supabase/Cloudflare, dan API key **live**. Jangan mengimpor data uji ke live.
+
 ## Update rutin
 
 - **Kode**: Cloudflare (opsi A): `git push` → build dan deploy otomatis. cPanel (opsi B): build ulang lalu upload ulang `site.zip`.
 - **Skema DB**: tambah file baru di `supabase/migrations/` → uji lokal (`npm run db:reset && npm run db:test`) → `npx supabase db push`.
   Jangan mengedit migrasi yang sudah di-push; buat migrasi baru.
-- **Edge Function**: setelah mengubah `supabase/functions/send-status-email/`, jalankan ulang
-  `npx supabase functions deploy send-status-email --project-ref <ref>`.
+- **Edge Function**: setelah mengubah `supabase/functions/<nama>/`, jalankan ulang
+  `npx supabase functions deploy <nama> --project-ref <ref>` (fungsi: `send-status-email`, `create-staff-account`).
 
 ## Checklist ringkas
 

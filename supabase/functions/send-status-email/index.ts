@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
   // RLS: non-admin tidak melihat baris apa pun -> NOT_FOUND
   const { data: row, error } = await supabase
     .from("re_registrations")
-    .select("code, full_name, email, status, members(member_number)")
+    .select("code, full_name, nickname, email, status, members(member_number)")
     .eq("id", payload.id)
     .maybeSingle();
   if (error) return json({ error: "LOOKUP_FAILED" }, 500);
@@ -73,7 +73,8 @@ Deno.serve(async (req) => {
   const member = Array.isArray(row.members) ? row.members[0] : row.members;
   const message = reRegistrationEmail({
     status: row.status,
-    fullName: row.full_name,
+    // nama lengkap opsional: pakai nickname bila kosong
+    fullName: row.full_name || row.nickname,
     code: row.code,
     memberNumber: member?.member_number ?? null,
     siteUrl,

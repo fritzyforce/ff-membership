@@ -1,6 +1,6 @@
 -- pgTAP: RLS + RPC registrasi ulang.  Jalankan: npm run db:test
 begin;
-select plan(76);
+select plan(77);
 
 -- ---------------------------------------------------------------- fixtures
 -- admin: didaftarkan di account_provisioning, profile dibuat trigger saat user dibuat
@@ -13,13 +13,12 @@ values ('FF-900', 'recruitment', 'Member Test', 'member@test.local', 'mt');
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-0000000000b1', 'member@test.local');
 
--- daftar nomor anggota lama
-insert into public.legacy_members (old_member_number) values
-  ('TST-001'), ('TST-002'), ('TST-003'), ('TST-004'), ('TST-005');
--- display name Line (pencarian nomor lewat display name); 'Kembar' sengaja dipakai dua anggota
-insert into public.legacy_members (old_member_number) values ('TST-006');
-update public.legacy_members set line_display_name = 'Budi Santoso Line' where old_member_number = 'TST-004';
-update public.legacy_members set line_display_name = 'Kembar' where old_member_number in ('TST-005', 'TST-006');
+-- daftar anggota lama (display name Line wajib & unik; nomor opsional)
+insert into public.legacy_members (old_member_number, line_display_name) values
+  ('TST-001', 'Test Satu'), ('TST-002', 'Test Dua'), ('TST-003', 'Test Tiga'),
+  ('TST-004', 'Budi Santoso Line'), ('TST-005', 'Test Lima');
+-- anggota "reset"/"ex admin": tidak punya nomor
+insert into public.legacy_members (line_display_name, note) values ('Tes Tanpa Nomor', 'reset');
 -- TST-001 punya kelebihan bayar kas 2 bulan (dari data lama)
 update public.legacy_members set prepaid_months = 2 where old_member_number = 'TST-001';
 
@@ -29,7 +28,8 @@ insert into storage.objects (bucket_id, name) values
   ('payment-proofs', 're-registrations/22222222-2222-4222-8222-222222222222.png'),
   ('payment-proofs', 're-registrations/33333333-3333-4333-8333-333333333333.jpg'),
   ('payment-proofs', 're-registrations/44444444-4444-4444-8444-444444444444.png'),
-  ('payment-proofs', 're-registrations/55555555-5555-4555-8555-555555555555.png');
+  ('payment-proofs', 're-registrations/55555555-5555-4555-8555-555555555555.png'),
+  ('payment-proofs', 're-registrations/77777777-7777-4777-8777-777777777777.png');
 
 -- =============================================================== ANON
 set local role anon;
@@ -49,7 +49,7 @@ select ok(not has_function_privilege('anon', 'public.reject_re_registration(uuid
   'anon tidak punya EXECUTE pada reject_re_registration');
 select ok(not has_function_privilege('anon', 'public.generate_re_registration_code()', 'execute'),
   'anon tidak punya EXECUTE pada fungsi internal generate_re_registration_code');
-select ok(has_function_privilege('anon', 'public.submit_re_registration(text, text, text, text, text, text, text, text, text, text, text, date)', 'execute'),
+select ok(has_function_privilege('anon', 'public.submit_re_registration(text, text, text, text, text, text, text, text, text, text)', 'execute'),
   'anon punya EXECUTE pada submit_re_registration (jalur publik)');
 select ok(has_function_privilege('anon', 'public.check_old_member_number(text)', 'execute'),
   'anon punya EXECUTE pada check_old_member_number (dipakai form)');
@@ -69,8 +69,8 @@ select is((select count(*)::int from storage.objects where bucket_id = 'payment-
   'anon tidak bisa melihat isi bucket payment-proofs');
 
 -- submit: validasi
-select throws_ok($$select public.submit_re_registration('', 'U', 'a@test.local', 'a', 'Jakarta', 'TST-001',
-  're-registrations/11111111-1111-4111-8111-111111111111.png')$$, 'P0001', 'INVALID_NAME', 'nama kosong ditolak');
+select throws_ok($$select public.submit_re_registration(repeat('a', 121), 'U', 'a@test.local', 'a', 'Jakarta', 'TST-001',
+  're-registrations/11111111-1111-4111-8111-111111111111.png')$$, 'P0001', 'INVALID_NAME', 'nama lengkap lebih dari 120 karakter ditolak (kosong boleh)');
 select throws_ok($$select public.submit_re_registration('Umar', 'U', 'bukan-email', 'a', 'Jakarta', 'TST-001',
   're-registrations/11111111-1111-4111-8111-111111111111.png')$$, 'P0001', 'INVALID_EMAIL', 'email salah ditolak');
 select throws_ok($$select public.submit_re_registration('Umar', 'U', 'a@test.local', '', 'Jakarta', 'TST-001',
@@ -85,7 +85,7 @@ select throws_ok($$select public.submit_re_registration('Umar', 'U', 'a@test.loc
 select lives_ok($$select set_config('test.code', public.submit_re_registration(
   'Umar Lama', 'Umar', 'Umar@Test.Local', 'umarlama', 'Bandung', ' tst-001 ',
   're-registrations/11111111-1111-4111-8111-111111111111.png',
-  '@umar', '', '@umar_tt', 'Jl. Melati 1', date '1999-03-04'), true)$$, 'submit valid berhasil');
+  '@umar', '', '@umar_tt'), true)$$, 'submit valid berhasil');
 select matches(current_setting('test.code'), '^RU-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$',
   'kode berformat acak RU-XXXX-XXXX');
 select throws_ok($$select public.submit_re_registration('Umar Dua', 'U2', 'umar@test.local', 'u2', 'Jakarta', 'TST-002',
@@ -98,11 +98,11 @@ select is(public.check_old_member_number('TST-002'), 'ok', 'nomor lama belum dip
 select is(public.check_old_member_number('TST-404'), 'not_found', 'nomor lama tidak ada di daftar -> not_found');
 select is((select r.old_member_number from public.resolve_old_member_number('  budi   SANTOSO line ') r), 'TST-004',
   'display name Line dikenali (huruf besar/kecil & spasi ganda diabaikan)');
-select is(public.check_old_member_number('kembar'), 'ambiguous', 'display name yang cocok >1 anggota -> ambiguous (hubungi admin)');
+select is(public.check_old_member_number('tes tanpa  NOMOR'), 'ok', 'anggota tanpa nomor ditemukan lewat display name Line');
 select is(public.check_old_member_number('Nama Tidak Ada'), 'not_found', 'display name tidak dikenal -> not_found');
-select throws_ok($$select public.submit_re_registration('Budi', 'B', 'budi@test.local', 'b', 'Jakarta', 'Kembar',
-  're-registrations/22222222-2222-4222-8222-222222222222.png', '@b')$$, 'P0001', 'OLD_NUMBER_AMBIGUOUS',
-  'submit dengan display name ambigu ditolak');
+select lives_ok($$select public.submit_re_registration('', 'Nn', 'nonum@test.local', 'nn.line', 'Jakarta', 'Tes Tanpa Nomor',
+  're-registrations/77777777-7777-4777-8777-777777777777.png', '@nn')$$,
+  'nama lengkap opsional; anggota tanpa nomor bisa registrasi ulang lewat display name');
 select lives_ok($$select public.submit_re_registration('Budi Santoso', 'Budi', 'dispname@test.local', 'budi.line', 'Jakarta', 'budi santoso line',
   're-registrations/66666666-6666-4666-8666-666666666666.png', '@budi')$$,
   'submit memakai display name Line (bukan nomor) berhasil');
@@ -122,9 +122,6 @@ select throws_ok($$select public.submit_re_registration('Budi', '', 'budi@test.l
   're-registrations/22222222-2222-4222-8222-222222222222.png')$$, 'P0001', 'INVALID_NICKNAME', 'nickname kosong ditolak');
 select throws_ok($$select public.submit_re_registration('Budi', 'B', 'budi@test.local', 'b', ' ', 'TST-003',
   're-registrations/22222222-2222-4222-8222-222222222222.png')$$, 'P0001', 'INVALID_DOMICILE', 'domisili kosong ditolak');
-select throws_ok($$select public.submit_re_registration('Budi', 'B', 'budi@test.local', 'b', 'Jakarta', 'TST-003',
-  're-registrations/22222222-2222-4222-8222-222222222222.png', '', '', '', '', current_date + 1)$$,
-  'P0001', 'INVALID_BIRTH_DATE', 'tanggal lahir di masa depan ditolak');
 
 -- cek status publik: hanya data minimal
 select is((select first_name from public.get_re_registration_status(lower(current_setting('test.code')))),
@@ -134,6 +131,10 @@ select is((select count(*)::int from public.get_re_registration_status('RU-ZZZZ-
 
 reset role;
 select set_config('test.rid', (select id::text from public.re_registrations where email = 'umar@test.local'), true);
+select set_config('test.ridn', (select id::text from public.re_registrations where email = 'nonum@test.local'), true);
+select ok((select r.old_member_number is null and r.legacy_member_id is not null
+           from public.re_registrations r where r.email = 'nonum@test.local'),
+  'pengajuan anggota tanpa nomor tertaut ke daftar lama lewat legacy_member_id (nomor kosong)');
 select is((select old_member_number from public.re_registrations where email = 'dispname@test.local'), 'TST-004',
   'pengajuan lewat display name menyimpan nomor anggota lama kanonik (TST-004)');
 select is((select status::text from public.re_registrations where email = 'umar@test.local'), 'pending',
@@ -170,22 +171,25 @@ select throws_ok($$select public.approve_re_registration(current_setting('test.r
 select throws_ok($$select public.reject_re_registration(current_setting('test.rid')::uuid, 'telat')$$,
   'P0001', 'ALREADY_REVIEWED', 'reject setelah approve ditolak');
 
+select matches(public.approve_re_registration(current_setting('test.ridn')::uuid), '^FF-\d{3}$',
+  'approve registrasi tanpa nomor lama & tanpa nama lengkap berhasil');
+
 -- admin: daftar nomor anggota lama
 select cmp_ok((select count(*)::int from public.legacy_members), '>=', 5, 'admin melihat legacy_members (RLS)');
-select is(public.admin_add_legacy_members('[{"number":"x-100"},{"number":" x 101","prepaid":2},{"number":"X-100"},
-  {"number":"bad!"},{"number":"X-102","prepaid":13},{"number":""}]'::jsonb),
-  '{"added": 2, "updated": 0, "duplicate": 0, "invalid": 2}'::jsonb,
-  'tambah nomor lama: dinormalisasi, duplikat digabung, karakter aneh & kelebihan bayar > 12 dihitung invalid');
-select is(public.admin_add_legacy_members('[{"number":"X-100"},{"number":"X101","prepaid":2},{"number":"X-100","prepaid":1}]'::jsonb),
+select is(public.admin_add_legacy_members('[{"line_name":"Orang Satu","number":"x-100","prepaid":1},
+  {"line_name":" orang   dua ","name":"Nama Dua","prepaid":2},{"line_name":"Orang Tiga","number":"bad!"},
+  {"line_name":"Orang Empat","prepaid":13},{"line_name":""}]'::jsonb),
+  '{"added": 2, "updated": 0, "duplicate": 0, "invalid": 3}'::jsonb,
+  'impor: display name wajib & dinormalisasi; nomor / kelebihan bayar tidak valid dan display name kosong dihitung invalid');
+select is(public.admin_add_legacy_members('[{"line_name":"Orang Satu","note":"reset"},{"line_name":"orang dua","prepaid":2}]'::jsonb),
   '{"added": 0, "updated": 1, "duplicate": 1, "invalid": 0}'::jsonb,
-  'nomor yang sudah ada: kelebihan bayar diperbarui bila berubah, selebihnya dilewati');
-select is(public.admin_add_legacy_members('[{"number":"X-100","line_name":"Orang X"}]'::jsonb),
-  '{"added": 0, "updated": 1, "duplicate": 0, "invalid": 0}'::jsonb, 'impor mengisi display name Line pada nomor yang ada');
-select is((select line_display_name from public.legacy_members where old_member_number = 'X-100'), 'Orang X',
-  'display name Line tersimpan');
-select is((select string_agg(old_member_number || '=' || prepaid_months, ',' order by old_member_number)
-           from public.legacy_members where old_member_number in ('X-100', 'X101')),
-  'X-100=1,X101=2', 'kelebihan bayar (bulan) tersimpan di legacy_members');
+  'impor ulang: field yang dicantumkan & berbeda diperbarui, selebihnya dilewati');
+select is((select string_agg(line_display_name || '|' || member_name || '|' || coalesce(old_member_number, '-') || '|' || prepaid_months || '|' || note,
+                             ';' order by lower(regexp_replace(btrim(line_display_name), '\s+', ' ', 'g')))
+           from public.legacy_members where lower(regexp_replace(btrim(line_display_name), '\s+', ' ', 'g')) in ('orang satu', 'orang dua')),
+  'orang   dua|Nama Dua|-|2|;Orang Satu||X-100|1|reset', 'data impor tersimpan (nomor opsional, nama, kelebihan bayar, catatan)');
+select is(public.admin_add_legacy_members('[{"line_name":"Orang Baru","number":"x-100"}]'::jsonb),
+  '{"added": 0, "updated": 0, "duplicate": 0, "invalid": 1}'::jsonb, 'nomor yang sudah dipakai anggota lain ditolak');
 
 -- uang kas: pembayaran registrasi = kas bulan registrasi; kelebihan bayar 2 bulan = 2 bulan berikutnya
 select is((select s.arrears_count from public.get_dues_summary((select id from public.members where email = 'umar@test.local')) s),
@@ -228,11 +232,14 @@ select ok((select l.is_registered and l.registered_at is not null
                   and l.member_id = (select m.id from public.members m where m.email = 'umar@test.local')
            from public.legacy_members l where l.old_member_number = 'TST-001'),
   'approve menandai nomor lama is_registered = true dan menautkannya ke anggota');
-select is((select m.nickname || '|' || m.domicile || '|' || m.social_x || '|' || m.social_tiktok || '|' || m.address
-                  || '|' || m.birth_date::text || '|' || m.old_member_number
+select is((select m.nickname || '|' || m.domicile || '|' || m.social_x || '|' || m.social_tiktok || '|' || m.old_member_number
            from public.members m where m.email = 'umar@test.local'),
-  'Umar|Bandung|@umar|@umar_tt|Jl. Melati 1|1999-03-04|TST-001',
-  'approve menyalin nickname, domisili, sosmed, alamat, tgl lahir, & nomor lama ke members');
+  'Umar|Bandung|@umar|@umar_tt|TST-001',
+  'approve menyalin nickname, domisili, sosmed, & nomor lama ke members');
+select ok((select m.full_name = 'Nn' and m.old_member_number is null
+                  and (select l.is_registered and l.member_id = m.id from public.legacy_members l where l.line_display_name = 'Tes Tanpa Nomor')
+           from public.members m where m.email = 'nonum@test.local'),
+  'nama lengkap kosong -> nickname dipakai; anggota tanpa nomor tertaut ke daftar lama (is_registered)');
 
 -- email yang sudah jadi anggota tidak bisa mengajukan lagi
 set local role anon;

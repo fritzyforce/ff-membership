@@ -112,7 +112,7 @@ Template email (Indonesia): `supabase/templates/`; panduan SMTP produksi: [docs/
 ## Manajemen anggota (admin & superadmin)
 Menu **Member Management** (`/admin/members/`): daftar dengan pencarian (nama/email/nomor), filter status, pagination dari server.
 Detail (`/admin/members/detail/?id=`):
-- **Edit data** anggota (nama, nickname, domisili, tgl lahir, alamat, ID Line, sosmed). Email dan nomor anggota lama tidak bisa diubah (penghubung ke akun / riwayat registrasi ulang).
+- **Edit data** anggota (nama, nickname, domisili, tgl lahir, alamat, ID Line, sosmed; tanggal lahir & alamat tidak lagi diisi di form registrasi ulang). Email dan nomor anggota lama tidak bisa diubah (penghubung ke akun / riwayat registrasi ulang).
 - **Status keanggotaan**: *Aktif* / *Nonaktif* / *Revoked*. Nonaktif/revoke **wajib beralasan** dan langsung menutup akses anggota
   ke profil & pembayarannya (ditegakkan RLS, bukan hanya UI), termasuk bila ia masih login. Tidak bisa mengubah diri sendiri.
 - **Info akun** (sudah punya akun, role, email terkonfirmasi, login terakhir) dan **riwayat uang kas** anggota.
@@ -127,7 +127,7 @@ Detail (`/admin/members/detail/?id=`):
   memakai bukti yang sama) untuk bulan pengajuan, jadi bulan itu **tidak** dihitung tunggakan (mis. registrasi Oktober → Oktober lunas).
 - **Kelebihan bayar kas lama** (`legacy_members.prepaid_months`, dalam bulan) melunasi bulan **sesudah** bulan registrasi: 1 bulan → November,
   2 bulan → November + Desember, dst. (maks. 12). Tercatat sebagai pembayaran `paid` asal *Kelebihan bayar kas lama* (tanpa bukti).
-  Diisi admin di menu **Nomor Anggota Lama** (`NOMOR, jumlah bulan, display name Line` per baris); bisa diperbarui selama nomornya belum registrasi ulang.
+  Diisi admin di menu **Anggota Lama** (kolom *Lebih Bayar*); bisa diperbarui selama datanya belum registrasi ulang.
 - Anggota **tidak memilih periode**. Pembayaran otomatis dihitung untuk **bulan yang belum dibayar paling awal** lebih dulu, jadi tunggakan
   dibayar berurutan dari yang tertua; kelebihan dihitung untuk **bulan ke depan** (maks. 12 bulan dari bulan berjalan).
   Contoh: ditagih sejak Juli, belum bayar, sekarang Oktober → bayar Rp 60.000 = bulan dibayar Juli–September; Rp 100.000 = Juli–November.
@@ -167,31 +167,44 @@ Cek status juga bisa pakai email pendaftaran.
 
 | Data | Wajib? |
 |---|---|
-| Email, Nama Lengkap, Nickname, ID Line, Domisili | wajib |
-| **Nomor Anggota Lama** (khusus registrasi ulang) | wajib — harus ada di daftar & belum registrasi ulang |
-| Sosial media (X, Instagram, TikTok), Alamat Lengkap, Tanggal Lahir | opsional |
+| Email, Nickname, ID Line, Domisili | wajib |
+| Nama Lengkap | **opsional** (kosong → nama dari daftar anggota lama → nickname) |
+| **Nomor Anggota Lama ATAU display name Line** | wajib — harus ada di daftar anggota lama & belum registrasi ulang |
+| Sosial media (X, Instagram, TikTok) | wajib **minimal salah satu** |
 | Bukti pembayaran uang kas (JPG/PNG ≤ 5MB) | wajib |
 
 Bukti diunggah ke bucket privat `payment-proofs`, lalu RPC `submit_re_registration` membuat pengajuan berstatus **pending** dan
 mengembalikan kode acak `RU-XXXX-XXXX`. Status bisa dicek di `/cek-status/` (juga lewat `/cek-status/?kode=RU-…`, tautan yang dikirim
 di email approve); hanya nama depan & status yang terlihat.
 
-**Nomor anggota lama** — tabel `legacy_members` (`old_member_number`, `is_registered`, `member_id`, `registered_at`). Saat form diisi,
-nomor dicek (on-blur lewat `check_old_member_number`) dan **dicek ulang di server saat submit**: harus ada di tabel, `is_registered = false`,
-dan tidak sedang dipakai pengajuan *pending* lain. Penulisan dinormalisasi (spasi dibuang, huruf kapital). `is_registered` baru menjadi
-`true` saat admin **Approve** (nomor ikut tertaut ke anggota baru di `members.old_member_number`); pengajuan yang ditolak tidak
-mengunci nomornya.
+**Daftar anggota lama** — tabel `legacy_members`, strukturnya mengikuti data sumber (Nama Anggota / Display Line / Nomor Anggota Lama / Lebih Bayar):
+
+| Kolom | Keterangan |
+|---|---|
+| `line_display_name` | **Wajib & unik** (tak peka huruf besar/kecil/spasi ganda). Display name Line (bukan ID Line); kunci baris |
+| `old_member_number` | **Opsional**, unik bila ada (anggota "reset" / "ex admin" tidak punya nomor) |
+| `member_name` | Nama anggota / admin (opsional) |
+| `note` | Catatan status, mis. `reset`, `ex admin` |
+| `prepaid_months` | Lebih bayar kas (bulan, 0–12) |
+| `is_registered`, `member_id`, `registered_at` | Terisi saat admin **Approve** |
+
+Saat form diisi, isian (nomor **atau** display name Line) dicek on-blur lewat `resolve_old_member_number` dan **dicek ulang di server saat submit**:
+harus ada di tabel, `is_registered = false`, dan tidak sedang dipakai pengajuan *pending* lain. Pengajuan tertaut ke baris lewat
+`re_registrations.legacy_member_id`. `is_registered` baru menjadi `true` saat admin **Approve** (nomor, bila ada, ikut tertaut ke anggota baru di
+`members.old_member_number`); pengajuan yang ditolak tidak mengunci datanya.
 
 **Admin** — menu *Registrasi Ulang* (`/admin/registrasi-ulang/`): antrean pending (default), filter status,
 cari nama/nickname/email/kode/nomor lama, pagination server-side. *Review* → detail lengkap + bukti bayar (signed URL 5 menit) →
 **Approve** (membuat anggota + nomor `FF-NNN` secara atomik, menandai nomor lama) atau **Reject**. Catatan review **opsional** dan hanya
 terlihat admin. Status publik hanya mengembalikan email pendaftar bila sudah approved, untuk mengisi otomatis halaman Registrasi Akun.
 
-Menu **Nomor Anggota Lama** (`/admin/anggota-lama/`): ringkasan (total / sudah / belum registrasi ulang), tabel dengan filter & pencarian,
-dan *Tambah Nomor* (tempel banyak baris `NOMOR, kelebihan bayar, display name Line`; duplikat dilewati; tercatat di audit log). **Display name Line** (bukan ID Line)
-dipakai anggota untuk mencari nomornya di form registrasi ulang: bila nomor tidak ditemukan, form meminta mencoba display name Line, dan bila masih gagal menghubungi admin.
-Pencocokan tidak peka huruf besar/kecil dan spasi ganda; bila satu display name cocok dengan lebih dari satu anggota, pengajuan ditolak dengan pesan "hubungi admin". Admin tidak menghapus/mengubah nomor
-dari UI — lakukan lewat SQL bila perlu koreksi.
+Menu **Anggota Lama** (`/admin/anggota-lama/`): ringkasan (total / sudah / belum registrasi ulang), tabel dengan filter & pencarian
+(display Line, nama, nomor, catatan), dan *Tambah Data*: **tempel langsung dari Excel / Sheets**, satu baris per anggota, kolom dipisah tab:
+`Nama Anggota | Display Line | Nomor Anggota Lama | Lebih Bayar` (kolom ke-5 opsional: Catatan). Display Line wajib; "2 bulan" atau `2` untuk lebih bayar;
+tulisan tanpa angka di kolom nomor (mis. `reset`, `ex admin`) otomatis menjadi catatan dengan nomor kosong; baris judul boleh ikut. Baris yang display name-nya
+sudah ada hanya diperbarui pada kolom yang terisi dan selama belum registrasi ulang; tercatat di audit log. **Display name Line** (bukan ID Line) dipakai
+anggota untuk mencari datanya di form registrasi ulang: bila nomor tidak ditemukan, form meminta mencoba display name Line, dan bila masih gagal menghubungi admin.
+Admin tidak menghapus data dari UI — lakukan lewat SQL bila perlu koreksi.
 
 **Email saat approve** — setelah admin Approve, aplikasi memanggil Edge Function `send-status-email` yang mengirim email ke email
 pendaftar: status *disetujui*, kode & nomor anggota, tombol **Cek Status Registrasi** (`/cek-status/?kode=<kode pendaftaran>`) dan
