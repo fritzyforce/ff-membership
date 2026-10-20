@@ -58,9 +58,10 @@ Profile (`profiles`) dibuat otomatis dan tertaut ke anggota. Pesan penolakan sen
 **Syarat password** — huruf besar, huruf kecil, angka, minimal 8 karakter. Ditegakkan **server**
 (`password_requirements = "lower_upper_letters_digits"` di `supabase/config.toml`); form menampilkan checklist langsung.
 
-**Konfirmasi email: NYALA** — setelah `/register/`, akun dibuat tetapi **belum bisa login** sampai pemilik email mengklik tautan di
-email konfirmasi (template: `supabase/templates/confirmation.html`). Setelah klik, sesi langsung aktif dan masuk ke `/akun/`.
-Login sebelum konfirmasi ditolak dengan tombol *Kirim ulang email konfirmasi*; admin melihat status *Email terkonfirmasi* di detail anggota.
+**Konfirmasi email: MATI** — di `/register/` pengguna mengisi email, password, dan **konfirmasi password**; akun langsung aktif, lalu pengguna
+diarahkan ke `/login/` dengan pesan *Registrasi akun berhasil* dan masuk dengan email + password yang baru dibuat. Risikonya: siapa pun yang tahu email
+anggota yang sudah disetujui bisa membuat akunnya lebih dulu. Bila konfirmasi dinyalakan lagi (`enable_confirmations = true` / Providers › Email › Confirm email),
+aplikasi otomatis kembali ke alur "Cek Email Kamu" tanpa ubah kode (template: `supabase/templates/confirmation.html`).
 Lokal: email masuk ke Mailpit (`http://127.0.0.1:54324`). Produksi butuh SMTP sendiri — lihat [docs/email-setup.md](docs/email-setup.md).
 
 **Login** — `/login/`: admin ke `/admin/…`, member ke `/akun/`. Anggota yang di-revoke/nonaktif ditolak.
@@ -87,7 +88,7 @@ values ('nama@domain.com', 'admin', 'Nama Admin');   -- role: 'admin' | 'admin_f
 
 ### Checklist sebelum produksi
 Beberapa pengaturan hanya ada di `supabase/config.toml` (lokal) — **di project cloud harus diset manual**:
-- Authentication › Providers › Email: **Confirm email = ON**, password minimal 8 + wajib huruf besar/kecil/angka.
+- Authentication › Providers › Email: **Confirm email = OFF**, password minimal 8 + wajib huruf besar/kecil/angka.
 - Authentication › URL Configuration: **Site URL** dan **Redirect URLs** ke domain produksi (tautan konfirmasi gagal bila tidak terdaftar).
 - **SMTP sendiri** (SMTP bawaan Supabase sangat terbatas) + atur rate limit email; pertimbangkan CAPTCHA (Turnstile) di form publik.
 - Terapkan migrasi: `supabase link` lalu `supabase db push`. Jangan jalankan `db:seed` ke produksi (script menolak host non-lokal).

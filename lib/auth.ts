@@ -135,7 +135,10 @@ export function logout() {
 }
 
 export interface RegisterResult {
-  /** true = email konfirmasi terkirim; akun baru aktif setelah tautan diklik. */
+  /**
+   * true = project Supabase masih mewajibkan konfirmasi email: akun aktif setelah tautan di email diklik.
+   * false = akun langsung aktif (konfirmasi email dimatikan); pemanggil mengarahkan ke halaman login.
+   */
   needsConfirmation: boolean;
 }
 
@@ -171,6 +174,12 @@ export async function registerAccount(email: string, password: string): Promise<
       throw new DataError("Tidak dapat terhubung ke server. Coba lagi beberapa saat.");
     }
     throw new DataError("Gagal membuat akun. Coba lagi.");
+  }
+  if (data.session) {
+    // Konfirmasi email dimatikan: signUp langsung membuat sesi. Akhiri sesi itu supaya pengguna
+    // melewati halaman login dan masuk dengan email + password yang baru dibuat.
+    cache = null;
+    await getSupabase().auth.signOut();
   }
   return { needsConfirmation: !data.session };
 }

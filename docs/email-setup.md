@@ -4,10 +4,10 @@
 **Bisa, dan gratis** — tapi sebaiknya punya **domain sendiri**. Hosting situs (Cloudflare/Vercel/dll.) tidak terlibat: email dikirim oleh
 **Supabase Auth** lewat server SMTP yang kamu pilih, jadi tidak peduli aplikasinya di-host di mana.
 
-> **Status saat ini:** *Confirm email* **menyala** — akun baru wajib mengonfirmasi email sebelum bisa login. Jadi SMTP sendiri
-> **wajib** sebelum produksi (konfirmasi akun, lupa password), ditambah Resend untuk email **approve registrasi ulang**.
+> **Status saat ini:** *Confirm email* **mati** — akun baru langsung aktif (tanpa email konfirmasi). SMTP sendiri tetap **wajib** sebelum produksi
+> untuk lupa password dan atur password staf, ditambah Resend untuk email **approve registrasi ulang**.
 
-Email dipakai untuk: **konfirmasi akun baru**, **lupa password**, **reset password oleh superadmin**, dan **pemberitahuan approve
+Email dipakai untuk: **lupa password**, **atur password staf baru**, **reset password oleh superadmin**, dan **pemberitahuan approve
 registrasi ulang** (Edge Function, lihat bagian terakhir).
 
 ## Kenapa tidak bisa pakai bawaan Supabase
@@ -44,22 +44,20 @@ Perkiraan pemakaian: 1 email per akun baru + 1 per reset password → komunitas 
 6. **Template email**: salin isi `supabase/templates/confirmation.html` dan `recovery.html` ke
    *Authentication › Email Templates* (subjek: lihat `supabase/config.toml`). Alternatif: `supabase config push`
    (aktifkan blok `[auth.email.smtp]` di `config.toml` dan set `SMTP_PASS` di environment).
-7. **Konfirmasi email** (Authentication › Providers › Email): **Confirm email = ON**;
+7. **Konfirmasi email** (Authentication › Providers › Email): **Confirm email = OFF**;
    password minimal 8 + wajib huruf besar/kecil/angka.
 8. **Hosting (Cloudflare: build variables)**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    (hanya dua ini — **jangan** menaruh service role key di hosting).
 
 ## Cara menguji
-1. Buat akun uji lewat `/register/` dengan email anggota yang valid → muncul "Cek Email Kamu". Lokal: buka Mailpit
-   (http://127.0.0.1:54324); produksi: inbox **dan folder spam**.
-2. Login sebelum mengklik tautan → ditolak dengan tombol *Kirim ulang email konfirmasi*. Klik tautan → langsung masuk ke `/akun/`.
-3. Coba `/lupa-password/` → klik tautan → buat password baru.
+1. Buat akun uji lewat `/register/` dengan email anggota yang valid (password + konfirmasi password) → diarahkan ke `/login/` dengan pesan *Registrasi akun berhasil* → login → masuk ke `/akun/`.
+3. Coba `/lupa-password/` → klik tautan di email (lokal: Mailpit http://127.0.0.1:54324; produksi: inbox **dan folder spam**) → buat password baru.
 4. Di Resend → *Emails* lihat status terkirim/bounce bila ada masalah.
 
-## Konfirmasi email & squatting
-Dengan *Confirm email = ON*, hanya pemilik inbox yang bisa mengaktifkan akun. Pengaman lain tetap berlaku: hanya email anggota
-aktif yang bisa mendaftar, satu anggota satu akun, admin/superadmin bisa menonaktifkan akun dan mengirim reset password.
-Untuk mematikan (mis. dev tanpa SMTP): `enable_confirmations = false` di `supabase/config.toml` (lokal) / Providers › Email (cloud);
+## Konfirmasi email dimatikan: risiko
+Dengan *Confirm email = OFF*, tidak ada bukti kepemilikan email: siapa pun yang tahu email anggota yang sudah disetujui bisa membuat akunnya lebih dulu.
+Pengaman yang tetap berlaku: hanya email anggota aktif yang bisa mendaftar, satu anggota satu akun, admin/superadmin bisa menonaktifkan akun dan mengirim reset password.
+Untuk menyalakan lagi: `enable_confirmations = true` di `supabase/config.toml` (lokal) / Providers › Email › Confirm email (cloud);
 aplikasi mendukung kedua mode tanpa perubahan kode.
 
 Tanpa SMTP sama sekali, konfirmasi dan lupa password tidak akan bekerja; reset/konfirmasi harus manual lewat

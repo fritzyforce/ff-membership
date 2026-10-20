@@ -230,10 +230,10 @@ enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
-# NYALA: akun baru harus mengonfirmasi email lewat tautan yang dikirim (validasi kepemilikan email)
-# sebelum bisa login. Lokal: email masuk ke Mailpit (http://127.0.0.1:54324). Produksi butuh SMTP
-# sendiri (lihat docs/email-setup.md).
-enable_confirmations = true
+# MATI atas permintaan pengguna: setelah mendaftar, akun langsung aktif dan bisa login dengan email + password
+# yang baru dibuat (tanpa email konfirmasi). Risiko: siapa pun yang tahu email anggota yang sudah disetujui bisa
+# membuat akunnya lebih dulu. Email tetap dipakai untuk lupa password & atur password staf (butuh SMTP).
+enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.

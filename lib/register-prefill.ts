@@ -29,3 +29,27 @@ export function clearRegisterEmail() {
     /* abaikan */
   }
 }
+
+/**
+ * Email yang baru dipakai mendaftar akun, dibawa ke halaman Login supaya terisi otomatis (tetap bisa diubah).
+ * Juga sessionStorage (bukan query string) agar email tidak tercatat di URL. Dibaca sekali lalu dihapus.
+ */
+const LOGIN_KEY = "ff-login-email";
+
+export function rememberLoginEmail(email: string) {
+  try {
+    sessionStorage.setItem(LOGIN_KEY, email);
+  } catch {
+    /* penyimpanan diblokir: pengguna mengetik email sendiri */
+  }
+}
+
+export function takeLoginEmail(): string {
+  try {
+    const v = sessionStorage.getItem(LOGIN_KEY) ?? "";
+    sessionStorage.removeItem(LOGIN_KEY);
+    return v;
+  } catch {
+    return "";
+  }
+}

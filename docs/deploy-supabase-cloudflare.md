@@ -11,7 +11,7 @@ Lokasi file ini di repo: `docs/deploy-supabase-cloudflare.md`.
 Browser ──> hosting statis (Cloudflare Workers ATAU cPanel) di https://membership.fritzyforce.my.id
    ├──────> Supabase (Auth + Postgres + Storage)
    └──────> Supabase Edge Function "send-status-email" ──> Resend ──> email "registrasi ulang disetujui"
-Supabase Auth ──(SMTP Resend)──> email konfirmasi akun & reset password
+Supabase Auth ──(SMTP Resend)──> email reset password & atur password staf
 ```
 
 Aplikasi ini **static export** (tanpa server). Browser bicara langsung ke Supabase dengan *publishable/anon key*; keamanan dijaga
@@ -86,13 +86,13 @@ Dashboard → **Authentication** (pengaturan ini **tidak** ikut terbawa dari `co
 
 | Menu | Setel |
 |---|---|
-| **Sign In / Providers › Email** | Enabled; **Confirm email = ON** |
+| **Sign In / Providers › Email** | Enabled; **Confirm email = OFF** (akun langsung aktif setelah daftar; tanpa email konfirmasi) |
 | **Allow new users to sign up** | **ON** (trigger database yang membatasi siapa boleh mendaftar) |
 | **Password** | Minimum length **8**; wajib **huruf kecil + besar + angka** |
 | **URL Configuration › Site URL** | `https://membership.fritzyforce.my.id` |
 | **URL Configuration › Redirect URLs** | tambah `https://membership.fritzyforce.my.id/**`; selama masa peralihan juga `https://ff-membership.fritzyforce-ofc.workers.dev/**`; `http://localhost:3000/**` bila perlu dev lokal |
 
-Tanpa Site URL/Redirect URLs yang benar, tautan konfirmasi email dan reset password **gagal**.
+Tanpa Site URL/Redirect URLs yang benar, tautan reset password dan atur password staf **gagal**.
 Jangan jalankan `supabase config push` (akan menimpa Site URL dengan `http://localhost:3000`).
 
 ## Langkah 5 — Resend: domain dan API key
@@ -126,9 +126,9 @@ Catatan:
 > Paket gratis membatasi jumlah domain per akun dan jumlah email (cek https://resend.com/pricing).
 > Bila Resend menolak karena domain "recently claimed", tunggu atau hubungi support Resend; ini jeda dari sisi Resend, bukan kesalahan konfigurasi.
 
-## Langkah 6 — SMTP Supabase untuk email konfirmasi dan reset password
+## Langkah 6 — SMTP Supabase untuk email reset password dan atur password staf
 
-SMTP bawaan Supabase hanya mengirim ke anggota tim Supabase (±2 email/jam), **tidak cukup**. Dashboard Supabase →
+SMTP bawaan Supabase hanya mengirim ke anggota tim Supabase (±2 email/jam), **tidak cukup** untuk reset password dan atur password staf. Dashboard Supabase →
 **Authentication › Emails › SMTP Settings** → aktifkan **Custom SMTP**:
 
 | Field | Nilai |
@@ -148,7 +148,7 @@ Dashboard → **Authentication › Emails › Templates**:
 
 | Template | Isi (salin dari repo) | Subjek |
 |---|---|---|
-| **Confirm signup** | `supabase/templates/confirmation.html` | `Konfirmasi email akun Fritzy Force` |
+| ~~Confirm signup~~ | tidak dipakai (konfirmasi email dimatikan); boleh dilewati | – |
 | **Reset Password** | `supabase/templates/recovery.html` | `Atur password akun Fritzy Force` (dipakai juga untuk email "atur password" staf baru) |
 
 ## Langkah 8 — Edge Function: email "registrasi ulang disetujui" dan pembuatan akun staf
@@ -298,7 +298,7 @@ Nama Anggota | Display Line | Nomor Anggota Lama | Lebih Bayar | (Catatan, opsio
    Cek inbox: ada tombol **Cek Status Registrasi**.
 6. Di detail anggota → **Riwayat Uang Kas**: pembayaran registrasi (bulan ini) + kelebihan bayar (bulan berikutnya), tanpa tunggakan; tombol **Rincian** menampilkan tanggal bayar dan tanggal approve.
 7. Login sebagai `admin` biasa → detail registrasi pending **tanpa** tombol Approve/Reject.
-8. Klik tombol di email → **Registrasi Akun** → buat password → muncul "Cek Email Kamu" → klik tautan di email konfirmasi → masuk `/akun/`.
+8. Klik tombol di email → **Registrasi Akun** → isi password + konfirmasi password → langsung diarahkan ke halaman login dengan pesan "Registrasi akun berhasil" → login dengan email dan password tadi → masuk `/akun/`.
 9. `/akun/bayar/` → ajukan pembayaran → staf finance Approve di **Uang Kas**.
 
 Hapus data uji (nomor `TEST-…`, anggota/registrasi uji) lewat SQL Editor sebelum dipakai nyata.
@@ -310,7 +310,7 @@ Hapus data uji (nomor `TEST-…`, anggota/registrasi uji) lewat SQL Editor sebel
 | Gejala | Penyebab dan solusi |
 |---|---|
 | Login: **`Invalid API key`** (Network → `token?grant_type=password` → "Invalid API key") | `NEXT_PUBLIC_SUPABASE_ANON_KEY` di build salah: terpotong, ada spasi, key project lain, atau secret key. Isi ulang di **build variables**, lalu **Retry build**. |
-| Login: "Email belum dikonfirmasi" | User dibuat tanpa *Auto Confirm*. Jalankan: `update auth.users set email_confirmed_at = now() where email = 'emailanda@…';` |
+| Login: "Email belum dikonfirmasi" | *Confirm email* di Supabase masih ON (matikan di Authentication › Providers › Email), atau user dibuat tanpa *Auto Confirm*. Jalankan: `update auth.users set email_confirmed_at = now() where email = 'emailanda@…';` |
 | Login: "Email atau password salah" | Password salah atau tidak memenuhi aturan. Ubah di Authentication › Users. |
 | Login: "Akun ini tidak aktif atau belum tertaut…" | Profil tidak terbaca: cek migrasi lengkap terpasang dan baris `profiles` ada, `active = true`. |
 | "Backend belum dikonfigurasi…" | Variabel build kosong/salah nama (Cloudflare: harus *build* variables, bukan runtime; cPanel: belum diisi saat `npm run build`). Perbaiki lalu build ulang. |
@@ -381,6 +381,20 @@ nomor opsional, nama, catatan, lebih bayar) + impor dari Excel · nomor anggota 
    - Approve satu registrasi uji → anggota terbentuk (nama dari daftar lama bila nama lengkap dikosongkan), email "disetujui" terkirim.
 9. **Live**: ulangi langkah 1–8 dengan project ref, akun Supabase/Cloudflare, dan API key **live**. Jangan mengimpor data uji ke live.
 
+## Reset data keanggotaan (nomor anggota kembali ke FRC-001)
+
+Berguna setelah masa uji, **sebelum** dipakai anggota sungguhan. **Destruktif dan tidak bisa dibatalkan setelah COMMIT.** Skrip: [`supabase/scripts/reset-membership.sql`](../supabase/scripts/reset-membership.sql).
+
+1. Dashboard Supabase → **SQL Editor** → tempel seluruh isi skrip → **Run**. Skrip membuka transaksi (`begin`) dan menampilkan satu baris hasil pengecekan
+   (jumlah anggota, registrasi ulang, pembayaran, counter, daftar anggota lama, akun staf tersisa). Harapan: `members = 0`, `re_registrations = 0`, `dues_payments = 0`,
+   `counter = 0`, `legacy_registered = 0`, `legacy_total` = jumlah anggota lama Anda, `profil_tersisa_staf` = jumlah staf.
+2. Bila angkanya benar, jalankan `commit;` di editor yang sama. Bila ragu, `rollback;`.
+3. Kosongkan file bukti di **Storage › payment-proofs** (hapus folder `re-registrations/` dan `dues/`) — file tidak ikut terhapus oleh SQL.
+4. Verifikasi: registrasi ulang berikutnya yang di-Approve bernomor **FRC-001**.
+
+Yang **dihapus**: anggota, akun login anggota, registrasi ulang, pembayaran uang kas, audit log. Yang **tetap**: akun staf, daftar anggota lama (nama, display name, nomor, lebih bayar — hanya status
+"sudah registrasi ulang" dikembalikan ke belum), pengaturan iuran.
+
 ## Update rutin
 
 - **Kode**: Cloudflare (opsi A): `git push` → build dan deploy otomatis. cPanel (opsi B): build ulang lalu upload ulang `site.zip`.
@@ -393,7 +407,7 @@ nomor opsional, nama, catatan, lebih bayar) + impor dari Excel · nomor anggota 
 
 - [ ] Project Supabase dibuat, ref + Database password dicatat
 - [ ] `npx supabase link` + `db push` sukses
-- [ ] Auth: Confirm email ON, sign-up ON, password policy, Site URL, Redirect URLs
+- [ ] Auth: Confirm email **OFF**, sign-up ON, password policy, Site URL, Redirect URLs
 - [ ] Resend: domain **Verified**, API key dibuat
 - [ ] SMTP Custom di Supabase + rate limit + 2 template email
 - [ ] `secrets set` (RESEND_API_KEY, EMAIL_FROM, SITE_URL) + `functions deploy send-status-email`

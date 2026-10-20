@@ -18,7 +18,7 @@ import {
   setNewPassword,
   useSession,
 } from "@/lib/auth";
-import { clearRegisterEmail, readRegisterEmail } from "@/lib/register-prefill";
+import { clearRegisterEmail, readRegisterEmail, rememberLoginEmail, takeLoginEmail } from "@/lib/register-prefill";
 import { getSupabase } from "@/lib/supabase/client";
 import type { Session } from "@/lib/types";
 import { PASSWORD_MAX_LENGTH, PASSWORD_RULES, validatePassword } from "@/lib/validation/password";
@@ -86,11 +86,20 @@ export function LoginView() {
   const [error, setError] = useState<string | null>(null);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  // dari halaman Register setelah akun berhasil dibuat (?registered=1)
+  const justRegistered = useSearchParams().get("registered") === "1";
 
   // Sudah login (atau baru klik tautan konfirmasi email) → langsung ke dashboard
   useEffect(() => {
     if (session && !busy) router.replace(homeFor(session));
   }, [session, busy, router]);
+
+  // Setelah registrasi akun: isi email dari form registrasi (tetap bisa diubah)
+  useEffect(() => {
+    if (!justRegistered) return;
+    const remembered = takeLoginEmail();
+    if (remembered) setEmail((current) => current || remembered);
+  }, [justRegistered]);
 
   // Tautan konfirmasi yang kedaluwarsa / sudah terpakai kembali ke sini dengan #error_code=… di URL
   useEffect(() => {
@@ -121,6 +130,11 @@ export function LoginView() {
 
   return (
     <AuthShell title="Masuk">
+      {justRegistered && (
+        <Notice tone="success">
+          Registrasi akun berhasil. Silakan masuk dengan email dan password yang baru kamu buat.
+        </Notice>
+      )}
       <form noValidate onSubmit={onSubmit} className="stack gap-4">
         <Field id="l-email" label="Email">
           <input id="l-email" className="input" type="email" placeholder="Email akun kamu" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -186,6 +200,7 @@ export function RegisterView() {
   // email dari halaman Cek Status (pendaftaran yang disetujui); dikunci agar tidak salah ketik
   const [locked, setLocked] = useState(false);
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -210,13 +225,15 @@ export function RegisterView() {
     if (!email.trim()) return setError("Email wajib diisi.");
     const passwordError = validatePassword(password);
     if (passwordError) return setError(passwordError);
+    if (password !== confirm) return setError("Konfirmasi password tidak sama dengan password.");
     setBusy(true);
     try {
       const { needsConfirmation } = await registerAccount(email, password);
       if (needsConfirmation) setSentTo(email.trim().toLowerCase());
       else {
         clearRegisterEmail();
-        router.replace("/akun/");
+        rememberLoginEmail(email.trim().toLowerCase());
+        router.replace("/login/?registered=1");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal membuat akun.");
@@ -272,6 +289,16 @@ export function RegisterView() {
         <div id="r-pass-rules">
           <PasswordChecklist password={password} />
         </div>
+        <Field id="r-confirm" label="Konfirmasi password">
+          <PasswordInput
+            id="r-confirm"
+            placeholder="Ketik ulang password"
+            autoComplete="new-password"
+            maxLength={PASSWORD_MAX_LENGTH}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+        </Field>
         {error && <Notice tone="error">{error}</Notice>}
         <button type="submit" className="btn btn-primary btn-block mt-1" disabled={busy}>
           {busy ? "Memproses…" : "Buat Akun"}
