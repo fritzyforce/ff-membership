@@ -59,7 +59,6 @@ export function reRegistrationEmail(d: ReRegistrationEmailData): EmailMessage {
         "Registrasi ulang disetujui",
         `<p style="margin:0 0 12px;">Halo ${name},</p>
          <p style="margin:0 0 12px;">Registrasi ulangmu sudah <strong style="color:#f9e58e;">disetujui</strong>. Kamu kembali resmi menjadi anggota Fritzy Force.</p>
-         <p style="margin:0 0 12px;">Kode pendaftaran: <strong style="color:#f9e58e;">${esc(d.code)}</strong></p>
          ${number ? `<p style="margin:0 0 12px;">Nomor anggota: ${number}</p>` : ""}
          <p style="margin:0 0 12px;">Lihat status registrasi ulangmu lewat tombol di bawah. Setelah itu buat akun dengan email ini di <a href="${esc(registerLink)}" style="color:#f9e58e;">halaman registrasi akun</a>.</p>`,
         { href: statusLink, label: "Cek Status Registrasi" },
