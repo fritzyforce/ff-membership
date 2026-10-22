@@ -5,6 +5,7 @@ select plan(36);
 -- Isolasi: kosongkan data dev DI DALAM transaksi ini (di-rollback di akhir).
 delete from public.dues_payments;
 delete from public.re_registrations;
+delete from public.recruitments;
 delete from public.profiles where role = 'member';
 delete from public.members;
 update public.member_counter set last_value = 0;

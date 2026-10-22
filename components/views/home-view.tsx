@@ -7,7 +7,7 @@ import { RECRUITMENT_OPEN } from "@/lib/config";
 const STEPS = [
   {
     title: "Isi formulir pendaftaran",
-    body: "Isi formulir pendafataran yang disediakan dengan data yang lengkap.",
+    body: "Isi formulir pendaftaran yang disediakan dengan data yang lengkap.",
   },
   {
     title: "Verifikasi & bayar uang kas",
@@ -40,7 +40,7 @@ export default function HomeView() {
               Registrasi Ulang
             </Link>
             {RECRUITMENT_OPEN ? (
-              <Link href="/daftar/" className="btn btn-secondary btn-block whitespace-nowrap lg:w-auto lg:px-8 lg:py-4">
+              <Link href="/join-us/" className="btn btn-secondary btn-block whitespace-nowrap lg:w-auto lg:px-8 lg:py-4">
                 Join Us Now!
               </Link>
             ) : (

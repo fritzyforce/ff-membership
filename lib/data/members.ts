@@ -32,7 +32,6 @@ function fromRow(r: MemberRow): Member {
     id: r.id,
     memberNumber: r.member_number,
     source: r.source,
-    applicantId: null,
     fullName: r.full_name,
     nickname: r.nickname,
     domicile: r.domicile,

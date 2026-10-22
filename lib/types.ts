@@ -3,34 +3,55 @@
  * `supabase/schema.sql` supaya migrasi dari data dummy ke Supabase mulus.
  */
 
-export type ApplicantStatus =
-  | "pending" // menunggu review admin
-  | "pre_approved" // lolos review, menunggu pembayaran uang kas
-  | "payment_submitted" // bukti bayar sudah dikirim, menunggu verifikasi
-  | "approved" // resmi jadi anggota
-  | "rejected";
+/**
+ * Pendaftaran anggota baru (Join Us), data nyata dari Supabase.
+ * pending -> pre_approved (admin; email pemberitahuan) -> payment_submitted (pendaftar bayar & unggah bukti)
+ * -> approved (anggota dibuat; pembayaran = uang kas pertama) | rejected.
+ */
+export type RecruitmentStatus = "pending" | "pre_approved" | "payment_submitted" | "approved" | "rejected";
 
-export interface Applicant {
+export interface Recruitment {
   id: string;
-  /** Kode pendaftaran, mis. REG-2026-0417 */
+  /** Kode acak, mis. REG-7K3F-9Q2M */
   code: string;
+  /** Opsional; "" bila kosong */
   fullName: string;
-  birthPlace: string;
-  /** ISO date (YYYY-MM-DD) */
-  birthDate: string;
-  address: string;
+  nickname: string;
+  email: string;
+  lineId: string;
+  domicile: string;
   socialX: string;
   socialInstagram: string;
   socialTiktok: string;
-  email: string;
-  phone: string;
-  lineId: string;
-  status: ApplicantStatus;
+  /** Alasan bergabung dengan Fritzy Force */
+  reason: string;
+  status: RecruitmentStatus;
+  /** Catatan admin (tidak tampil ke pendaftar) */
   reviewNote: string;
-  /** Nama file bukti bayar uang kas pendaftaran */
-  paymentProof: string | null;
-  /** Diisi saat status approved */
+  /** Alasan bukti bayar ditolak (tampil ke pendaftar) */
+  paymentNote: string;
+  /** Path bukti bayar di bucket privat payment-proofs; null sebelum membayar */
+  proofPath: string | null;
+  preApprovedAt: string | null;
+  paymentSubmittedAt: string | null;
+  reviewedAt: string | null;
+  /** Diisi saat approved */
   memberNumber: string | null;
+  createdAt: string;
+}
+
+/** Hasil cek status publik (data minimal). */
+export interface RecruitmentPublicStatus {
+  code: string;
+  firstName: string;
+  status: RecruitmentStatus;
+  memberNumber: string | null;
+  /** Hanya terisi bila approved: untuk mengisi otomatis halaman Registrasi Akun */
+  email: string | null;
+  /** Alasan bukti bayar sebelumnya ditolak */
+  paymentNote: string;
+  /** Iuran 1 bulan (rupiah), dari database */
+  amount: number;
   createdAt: string;
 }
 
@@ -44,7 +65,6 @@ export interface Member {
   /** Nomor anggota, mis. FRC-017 */
   memberNumber: string;
   source: MemberSource;
-  applicantId: string | null;
   fullName: string;
   nickname: string;
   domicile: string;
@@ -136,8 +156,9 @@ export type DuesStatus = "processing" | "paid" | "rejected";
  *  - member: anggota mengajukan lewat /akun/bayar
  *  - re_registration: pembayaran registrasi ulang, dihitung sebagai kas bulan registrasi
  *  - legacy_credit: kelebihan bayar kas dari data lama (tanpa bukti)
+ *  - recruitment: pembayaran pendaftaran anggota baru (uang kas pertama)
  */
-export type DuesSource = "member" | "re_registration" | "legacy_credit";
+export type DuesSource = "member" | "re_registration" | "legacy_credit" | "recruitment";
 
 /** Pembayaran uang kas (data nyata dari Supabase). */
 export interface DuesPayment {

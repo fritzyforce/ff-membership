@@ -5,7 +5,7 @@
 export const DUES_AMOUNT = 20000;
 
 /**
- * Pendaftaran anggota baru (Join Us). Sementara ditutup: tombol di homepage
- * nonaktif dan /daftar/ menampilkan pemberitahuan. Ubah ke `true` untuk membuka.
+ * Pendaftaran anggota baru (Join Us, /join-us/). `false` = ditutup: tombol di homepage
+ * nonaktif dan /join-us/ menampilkan pemberitahuan.
  */
-export const RECRUITMENT_OPEN = false;
+export const RECRUITMENT_OPEN = true;

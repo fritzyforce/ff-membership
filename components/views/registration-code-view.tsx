@@ -11,7 +11,7 @@ const COPY = {
   recruitment: {
     title: "Pendaftaran Terkirim",
     heading: "Pendaftaran Diterima!",
-    body: "Simpan kode pendaftaran di bawah ini untuk mengecek status pendaftaran.",
+    body: "Pendaftaranmu akan ditinjau admin. Bila lolos (pre-approved), kamu menerima email berisi langkah pembayaran. Simpan kode di bawah ini untuk mengecek status pendaftaran.",
     label: "Kode Pendaftaran",
   },
   re_registration: {
