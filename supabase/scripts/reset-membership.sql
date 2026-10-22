@@ -1,5 +1,5 @@
 -- RESET DATA KEANGGOTAAN (DESTRUKTIF, tidak bisa dibatalkan setelah COMMIT).
--- Menghapus: semua anggota, akun login anggota, registrasi ulang, pembayaran uang kas, audit log;
+-- Menghapus: semua anggota, akun login anggota, registrasi ulang, pendaftaran anggota baru (Join Us), pembayaran uang kas, audit log;
 -- mengembalikan daftar anggota lama menjadi "belum registrasi ulang"; counter nomor anggota kembali ke 0
 -- (nomor berikutnya = FRC-001).
 -- TIDAK menghapus: akun staf (admin / admin_finance / superadmin), daftar anggota lama (legacy_members: nama,
@@ -24,6 +24,7 @@ delete from public.dues_payments;
 update public.legacy_members
    set is_registered = false, member_id = null, registered_at = null;
 delete from public.re_registrations;
+delete from public.recruitments;
 delete from public.members;
 delete from public.audit_log;
 
@@ -33,6 +34,7 @@ update public.member_counter set last_value = 0;
 -- 5) cek hasil SEBELUM commit
 select (select count(*) from public.members)            as members,
        (select count(*) from public.re_registrations)    as re_registrations,
+       (select count(*) from public.recruitments)        as recruitments,
        (select count(*) from public.dues_payments)       as dues_payments,
        (select last_value from public.member_counter)    as counter,
        (select count(*) from public.legacy_members)      as legacy_total,

@@ -157,7 +157,7 @@ async function seedLegacyMembers() {
     const { error: uErr } = await sb.from("legacy_members")
       .update({ prepaid_months: LEGACY_PREPAID[number] ?? 0, line_display_name: LEGACY_LINE_NAMES[number] })
       .eq("old_member_number", number).eq("is_registered", false);
-    if (uErr) throw uErr;
+    if (uErr && uErr.code !== "23505") throw uErr; // display name sudah dipakai baris lain: lewati
   }
   console.log(`✓ daftar anggota lama  ${LEGACY_NUMBERS.length} nomor + 1 tanpa nomor  (kelebihan bayar: ${JSON.stringify(LEGACY_PREPAID)})`);
 }
@@ -253,6 +253,39 @@ async function seedReRegistrations(reviewerId) {
   }
 }
 
+/* ------------------------------------------------------- rekrutmen anggota baru */
+
+const RECRUITS = [
+  { name: "", nick: "Joko", email: "joko.santoso@fritzyforce.test", line: "joko.s", domicile: "Medan", socialX: "@jokos", reason: "Ingin kenal sesama fans Fritzy dan ikut kegiatan komunitas.", status: "pending" },
+  { name: "Lina Marlina", nick: "Lina", email: "lina.marlina@fritzyforce.test", line: "lina.m", domicile: "Bogor", socialInstagram: "@linam", reason: "Suka konten Fritzy sejak debut.", status: "pre_approved" },
+  { name: "Maya Putri", nick: "Maya", email: "maya.putri@fritzyforce.test", line: "maya.p", domicile: "Yogyakarta", socialTiktok: "@mayap", reason: "Teman-teman sudah join dan seru.", status: "payment_submitted", tint: [200, 120, 60] },
+];
+
+async function seedRecruitments(reviewerId) {
+  for (const s of RECRUITS) {
+    const { data: existing } = await sb.from("recruitments").select("id").eq("email", s.email).maybeSingle();
+    if (existing) {
+      console.log(`· skip   ${s.email} (sudah ada)`);
+      continue;
+    }
+    const { data: code, error } = await sb.rpc("submit_recruitment", {
+      p_full_name: s.name, p_nickname: s.nick, p_email: s.email, p_line_id: s.line, p_domicile: s.domicile,
+      p_reason: s.reason, p_social_x: s.socialX ?? "", p_social_instagram: s.socialInstagram ?? "", p_social_tiktok: s.socialTiktok ?? "",
+    });
+    if (error) throw error;
+    const now = new Date().toISOString();
+    if (s.status !== "pending") {
+      const patch = { status: "pre_approved", pre_approved_at: now, pre_approved_by: reviewerId };
+      if (s.status === "payment_submitted") {
+        Object.assign(patch, { status: "payment_submitted", proof_path: await uploadProof(s.tint, "recruitment"), payment_submitted_at: now });
+      }
+      const { error: uErr } = await sb.from("recruitments").update(patch).eq("code", code);
+      if (uErr) throw uErr;
+    }
+    console.log(`✓ rekrutmen ${s.status.padEnd(17)} ${code}  ${s.email}`);
+  }
+}
+
 /* ------------------------------------------------------------------ uang kas */
 
 /** Periode "YYYY-MM" (WIB) dengan offset bulan dari sekarang. */
@@ -325,5 +358,6 @@ async function seedDues(reviewerId) {
 const reviewerId = await seedAdmins();
 await seedLegacyMembers();
 await seedReRegistrations(reviewerId);
+await seedRecruitments(reviewerId);
 await seedDues(reviewerId);
 console.log("Selesai.");

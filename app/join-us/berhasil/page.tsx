@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Pendaftaran Terkirim" };
 export default function Page() {
   return (
     <Suspense>
-      <RegistrationCodeView />
+      <RegistrationCodeView variant="recruitment" />
     </Suspense>
   );
 }

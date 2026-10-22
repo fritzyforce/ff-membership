@@ -1,5 +1,6 @@
 /**
- * Edge Function: kirim email hasil review registrasi ulang ke pendaftar (via Resend).
+ * Edge Function: kirim email status ke pendaftar (via Resend): hasil review registrasi ulang, dan pendaftaran
+ * anggota baru (pre-approved / approved).
  *
  * Keamanan:
  *   - Pemanggil harus admin: query dijalankan dengan JWT pemanggil sehingga RLS
@@ -14,7 +15,7 @@
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-import { reRegistrationEmail } from "./templates.ts";
+import { recruitmentEmail, reRegistrationEmail } from "./templates.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: "BAD_REQUEST" }, 400);
   }
-  if (payload.kind !== "re_registration" || !payload.id || !UUID.test(payload.id)) {
+  if ((payload.kind !== "re_registration" && payload.kind !== "recruitment") || !payload.id || !UUID.test(payload.id)) {
     return json({ error: "BAD_REQUEST" }, 400);
   }
 
@@ -58,32 +59,58 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  // RLS: non-admin tidak melihat baris apa pun -> NOT_FOUND
-  const { data: row, error } = await supabase
-    .from("re_registrations")
-    .select("code, full_name, nickname, email, status, members(member_number)")
-    .eq("id", payload.id)
-    .maybeSingle();
-  if (error) return json({ error: "LOOKUP_FAILED" }, 500);
-  if (!row) return json({ error: "NOT_FOUND" }, 404);
-  if (row.status !== "approved" && row.status !== "rejected") {
-    return json({ error: "NOT_REVIEWED_YET" }, 409);
-  }
+  let to: string;
+  let message: ReturnType<typeof reRegistrationEmail>;
 
-  const member = Array.isArray(row.members) ? row.members[0] : row.members;
-  const message = reRegistrationEmail({
-    status: row.status,
-    // nama lengkap opsional: pakai nickname bila kosong
-    fullName: row.full_name || row.nickname,
-    code: row.code,
-    memberNumber: member?.member_number ?? null,
-    siteUrl,
-  });
+  if (payload.kind === "re_registration") {
+    // RLS: non-admin tidak melihat baris apa pun -> NOT_FOUND
+    const { data: row, error } = await supabase
+      .from("re_registrations")
+      .select("code, full_name, nickname, email, status, members(member_number)")
+      .eq("id", payload.id)
+      .maybeSingle();
+    if (error) return json({ error: "LOOKUP_FAILED" }, 500);
+    if (!row) return json({ error: "NOT_FOUND" }, 404);
+    if (row.status !== "approved" && row.status !== "rejected") {
+      return json({ error: "NOT_REVIEWED_YET" }, 409);
+    }
+    const member = Array.isArray(row.members) ? row.members[0] : row.members;
+    to = row.email;
+    message = reRegistrationEmail({
+      status: row.status,
+      // nama lengkap opsional: pakai nickname bila kosong
+      fullName: row.full_name || row.nickname,
+      code: row.code,
+      memberNumber: member?.member_number ?? null,
+      siteUrl,
+    });
+  } else {
+    // pendaftaran anggota baru: hanya pre_approved (lanjut bayar) dan approved (resmi) yang dikirimi email
+    const { data: row, error } = await supabase
+      .from("recruitments")
+      .select("code, full_name, nickname, email, status, members(member_number)")
+      .eq("id", payload.id)
+      .maybeSingle();
+    if (error) return json({ error: "LOOKUP_FAILED" }, 500);
+    if (!row) return json({ error: "NOT_FOUND" }, 404);
+    if (row.status !== "pre_approved" && row.status !== "approved") {
+      return json({ error: "NOT_NOTIFIABLE" }, 409);
+    }
+    const member = Array.isArray(row.members) ? row.members[0] : row.members;
+    to = row.email;
+    message = recruitmentEmail({
+      status: row.status,
+      fullName: row.full_name || row.nickname,
+      code: row.code,
+      memberNumber: member?.member_number ?? null,
+      siteUrl,
+    });
+  }
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [row.email], subject: message.subject, html: message.html, text: message.text }),
+    body: JSON.stringify({ from, to: [to], subject: message.subject, html: message.html, text: message.text }),
   });
   if (!res.ok) {
     console.error("resend failed", res.status, await res.text());
