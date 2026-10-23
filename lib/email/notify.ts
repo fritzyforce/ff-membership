@@ -18,3 +18,14 @@ export async function notifyReRegistrationReviewed(reRegistrationId: string): Pr
   });
   if (error) throw new Error("Keputusan tersimpan, tetapi email ke pendaftar gagal dikirim.");
 }
+
+/**
+ * Email pendaftaran anggota baru: dikirim setelah PRE-APPROVE (lanjut bayar) dan setelah APPROVE (resmi jadi anggota).
+ * Fungsi yang sama dengan notifikasi registrasi ulang (`kind: "recruitment"`).
+ */
+export async function notifyRecruitmentReviewed(recruitmentId: string): Promise<void> {
+  const { error } = await getSupabase().functions.invoke("send-status-email", {
+    body: { kind: "recruitment", id: recruitmentId },
+  });
+  if (error) throw new Error("Keputusan tersimpan, tetapi email ke pendaftar gagal dikirim.");
+}

@@ -5,11 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import AuthGuard from "@/components/layout/auth-guard";
-import { IconClipboard, IconFile, IconLogout, IconRefresh, IconUserCheck, IconUsers, IconWallet } from "@/components/ui/icons";
+import { IconClipboard, IconFile, IconLogout, IconUserCheck, IconUsers, IconWallet } from "@/components/ui/icons";
 import { Logo } from "@/components/ui/primitives";
 import ThemeToggle from "@/components/ui/theme-toggle";
 import { logout } from "@/lib/auth";
-import { resetDummyData } from "@/lib/data/store";
 import type { Role, Session } from "@/lib/types";
 
 const ROLE_NAME: Record<Role, string> = {
@@ -46,11 +45,6 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
     router.replace("/");
   };
 
-  const resetData = async () => {
-    if (!window.confirm("Reset semua data dummy ke kondisi awal?")) return;
-    await resetDummyData();
-  };
-
   const nav = NAV.filter((n) => !n.superadminOnly || session.role === "superadmin").map(({ href, label, Icon }) => (
     <Link
       key={href}
@@ -80,10 +74,6 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
           <div className="text-body-sm truncate">{session.email}</div>
         </div>
         <ThemeToggle variant="nav" />
-        <button type="button" className="admin-nav-item" style={{ color: "var(--gold-500)" }} onClick={resetData}>
-          <IconRefresh />
-          Reset data dummy
-        </button>
         <button type="button" className="admin-nav-item" onClick={signOut}>
           <IconLogout />
           Keluar

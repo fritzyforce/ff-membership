@@ -1,8 +1,7 @@
 import type {
-  Applicant,
-  ApplicantStatus,
   DuesSource,
   DuesStatus,
+  RecruitmentStatus,
   ReRegistrationStatus,
 } from "@/lib/types";
 
@@ -66,7 +65,7 @@ export function initials(name: string) {
     .join("");
 }
 
-type Socials = Pick<Applicant, "socialX" | "socialInstagram" | "socialTiktok">;
+type Socials = { socialX: string; socialInstagram: string; socialTiktok: string };
 
 /** Daftar sosmed yang terisi: [{label, value}] */
 export function socialsOf(p: Socials) {
@@ -77,8 +76,8 @@ export function socialsOf(p: Socials) {
   ].filter((s) => s.value);
 }
 
-export const APPLICANT_STATUS: Record<
-  ApplicantStatus,
+export const RECRUITMENT_STATUS: Record<
+  RecruitmentStatus,
   { label: string; badge: "approved" | "pending" | "reject" }
 > = {
   pending: { label: "Menunggu Review", badge: "pending" },
@@ -100,6 +99,7 @@ export const RE_REGISTRATION_STATUS: Record<
 export const DUES_SOURCE: Record<DuesSource, string> = {
   member: "Pembayaran anggota",
   re_registration: "Pembayaran registrasi ulang",
+  recruitment: "Pembayaran pendaftaran anggota baru",
   legacy_credit: "Kelebihan bayar kas lama",
 };
 

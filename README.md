@@ -18,7 +18,7 @@ Backend dimigrasi **bertahap ke Supabase**:
 | **Manajemen anggota (admin/superadmin)** — daftar, detail, edit, status, aksi akun, audit log | ✅ Supabase |
 | **Uang kas** — anggota mengajukan pembayaran, admin cek bukti & approve/reject | ✅ Supabase |
 | **Lupa / reset password** (email) | ✅ Supabase Auth |
-| Rekrutmen baru (form, cek status, Recruitment Management admin) | dummy (`localStorage`) — fase berikutnya |
+| **Rekrutmen anggota baru** (`/join-us`: form, pre-approve + email, pembayaran, cek status, Recruitment Management admin) | ✅ Supabase |
 
 
 ## Jalankan
@@ -70,8 +70,7 @@ Riwayat uang kas di halaman itu juga dari Supabase (lihat bagian *Uang kas*).
 
 **Penomoran anggota** — `FRC-001` … `FRC-999` (anggota yang sudah bernomor `FF-NNN` tetap valid), berurutan **tanpa celah**, diberikan saat admin Approve. Memakai tabel
 counter satu baris (bukan `sequence`) sehingga approve yang gagal tidak menghabiskan nomor. Setelah `FRC-999`, approve
-ditolak (`MEMBER_NUMBER_EXHAUSTED`). Constraint database menolak format lain. Data dummy rekrutmen masih memakai format
-lama `FF-2026-xxxx` sampai fitur rekrutmen dimigrasi.
+ditolak (`MEMBER_NUMBER_EXHAUSTED`). Constraint database menolak format lain.
 
 **Membuat akun staf** — sign-up publik tidak bisa membuat staf.
 - **Superadmin lewat aplikasi:** menu **Akun Staf** (`/admin/staff/`, hanya superadmin) → email, nama, role **Admin** / **Admin Finance** → *Buat Akun*.
@@ -151,18 +150,6 @@ hanya bisa dibayar oleh satu pembayaran aktif; pengajuan per anggota diserialkan
 (kapan diverifikasi admin; "Ditolak …" / "Menunggu" bila belum), dan tiap baris punya tombol **Rincian**: asal pembayaran, bulan-bulan yang
 dibayar, nominal, kedua tanggal, status, dan catatan penolakan. Nominal pembayaran registrasi ulang dicatat sebesar iuran 1 bulan.
 
-## Kode pendaftaran dummy (untuk `/cek-status/`)
-| Kode | Status |
-|---|---|
-| `REG-2026-0418`, `REG-2026-0416`, `REG-2026-0415` | Menunggu Review |
-| `REG-2026-0419` | Pre-approved (QRIS + upload bukti bayar) |
-| `REG-2026-0420` | Bukti bayar terkirim, menunggu verifikasi |
-| `REG-2026-0413` | Approved, **belum punya akun** → bisa tes Register dengan `jasmine.putri@fritzyforce.test` |
-| `REG-2026-0417` | Approved, sudah punya akun |
-| `REG-2026-0414` | Rejected |
-
-Cek status juga bisa pakai email pendaftaran.
-
 ## Registrasi ulang anggota lama (backend Supabase)
 **Data yang dikumpulkan** — `/registrasi-ulang/` (link di homepage):
 
@@ -224,26 +211,44 @@ Definisi: `supabase/migrations/20261011…_re_registrations.sql` dan `20261017�
 Data contoh (`db:seed`): nomor lama `OLD-001`…`OLD-010` (`OLD-003` kelebihan bayar 1 bulan, `OLD-009` 2 bulan); 3 pending, 3 approved, 1 rejected — kodenya tercetak di output seed.
 `OLD-007`…`OLD-010` masih bebas untuk menguji form.
 
-## Alur rekrutmen baru (masih dummy)
-> Anggota hasil alur dummy ini **tidak bisa** membuat akun nyata — hanya anggota di Supabase (hasil registrasi ulang) yang bisa.
+## Rekrutmen anggota baru — Join Us (backend Supabase)
 
-1. **Daftar** (`/daftar/`) → dapat kode `REG-…` → status *Menunggu Review*.
-2. Admin **Approve** di Recruitment Management → *Pre-approved*.
-3. Pendaftar buka **Cek Status**, scan QRIS, upload bukti → *Verifikasi Bayar*.
-4. Admin klik **Verifikasi Bayar** → *Approved* + nomor anggota dibuat.
-5. Anggota **Register** dengan email pendaftaran → **Login** → Akun Saya & Bayar Uang Kas.
-6. Uang kas diverifikasi admin di menu **Uang Kas**.
+Form publik di **`/join-us/`** (alamat lama `/daftar` dialihkan lewat `public/_redirects`). Datanya sama seperti registrasi ulang **tanpa nomor anggota lama dan tanpa bukti bayar**,
+ditambah **alasan join Fritzy Force**:
 
-Reset data dummy (bukan data Supabase): tombol **Reset data dummy** di sidebar admin (desktop), atau hapus key
-`ff-membership-db-v3` di localStorage. Reset data Supabase lokal: `npm run db:reset && npm run db:seed`.
+| Data | Wajib? |
+|---|---|
+| Email, Nickname, ID Line, Domisili | wajib |
+| Nama Lengkap | opsional (kosong → nickname) |
+| Sosial media (X, Instagram, TikTok) | minimal salah satu |
+| Alasan Join Fritzy Force | wajib (maks. 1000 karakter) |
+
+**Alur** — pembayaran dilakukan SETELAH pre-approve:
+1. Pendaftar mengirim form → kode **`REG-XXXX-XXXX`** → status *Menunggu Review* (`/join-us/berhasil/`).
+2. **Admin finance / superadmin** → menu *Recruitment Management* → **Pre-approve** → pendaftar menerima **email** berisi tombol ke halaman cek status.
+   Di sisi pendaftar (halaman status dan email) istilahnya **"Diterima"**; kata *pre-approved* hanya muncul di halaman admin.
+   (Reject juga hanya admin finance / superadmin, sama seperti registrasi ulang; admin biasa hanya melihat.)
+3. Pendaftar membuka `/cek-status/?kode=REG-…` → scan **QRIS**, bayar iuran 1 bulan (dari `app_settings`), **unggah bukti** → *Verifikasi Bayar*.
+   Bila bukti tidak sesuai, admin memakai **Tolak Bukti** (catatan wajib, tampil ke pendaftar): pendaftar kembali ke *Pre-approved* dan bisa mengunggah ulang.
+4. Admin **Approve** → anggota dibuat (nomor `FRC-NNN`, sumber `recruitment`) dan email "selamat bergabung" dikirim.
+   **Pembayaran itu dicatat sebagai uang kas pertama**: bulan pembayaran (WIB) menjadi bulan awal penagihan dan langsung lunas — tanpa tunggakan.
+5. Anggota **Registrasi Akun** dengan email pendaftaran → login → Akun Saya & Bayar Uang Kas.
+
+Teknis: tabel `recruitments` (status `pending → pre_approved → payment_submitted → approved | rejected`), semua tulis lewat RPC
+(`submit_recruitment`, `get_recruitment_status`, `submit_recruitment_payment`, `pre_approve_recruitment`, `reject_recruitment`, `reject_recruitment_payment`,
+`approve_recruitment`); bukti diunggah publik hanya ke `payment-proofs/recruitment/<uuid>.jpg|png`. Email lewat Edge Function `send-status-email`
+(`kind: "recruitment"`, hanya untuk status pre_approved dan approved). Satu pendaftaran aktif per email; yang ditolak boleh mendaftar lagi; email yang sudah jadi anggota atau
+sedang registrasi ulang ditolak. Riwayat uang kas menampilkan asal pembayaran *Pembayaran pendaftaran anggota baru*.
+
+Data contoh (`db:seed`): 3 pendaftar — menunggu review, pre-approved, dan verifikasi bayar (kodenya tercetak di output seed).
 
 ## Struktur
-- `app/` — route (`/`, `/daftar`, `/daftar/berhasil`, `/cek-status`, `/login`, `/register`, `/akun`, `/akun/bayar`, `/admin/members`, `/admin/members/detail?id=`, `/admin/recruitment`, `/admin/recruitment/detail?id=`, `/registrasi-ulang`, `/admin/registrasi-ulang`, `/admin/anggota-lama`)
+- `app/` — route (`/`, `/join-us`, `/join-us/berhasil`, `/cek-status`, `/login`, `/register`, `/akun`, `/akun/bayar`, `/admin/members`, `/admin/members/detail?id=`, `/admin/recruitment`, `/admin/recruitment/detail?id=`, `/registrasi-ulang`, `/admin/registrasi-ulang`, `/admin/anggota-lama`)
 - `components/views/` — isi tiap halaman; `components/layout/` — header, topbar, admin shell, auth guard; `components/ui/` — komponen design system
 - `app/globals.css` — token warna & kelas komponen dari design (tema ikut device; override via `html[data-theme]`)
-- `lib/types.ts` — model data; `lib/data/seed.ts` — data dummy rekrutmen
-- `lib/data/re-registrations.ts`, `lib/data/legacy-members.ts` (nomor anggota lama), `lib/data/members.ts` (anggota: sendiri & admin), `lib/data/dues.ts` (uang kas), `lib/data/proofs.ts` (bukti bayar) — repository Supabase; `lib/validation/password.ts` — aturan password; `lib/supabase/client.ts` — client browser
-- `lib/data/store.ts` — repository dummy (hanya rekrutmen baru); `lib/auth.ts` — auth Supabase untuk semua peran
+- `lib/types.ts` — model data
+- `lib/data/recruitment.ts` (Join Us), `lib/data/re-registrations.ts`, `lib/data/legacy-members.ts` (nomor anggota lama), `lib/data/members.ts` (anggota: sendiri & admin), `lib/data/dues.ts` (uang kas), `lib/data/proofs.ts` (bukti bayar) — repository Supabase; `lib/validation/password.ts` — aturan password; `lib/supabase/client.ts` — client browser
+- `lib/auth.ts` — auth Supabase untuk semua peran
 - `supabase/migrations/` — skema nyata; `supabase/tests/` — pgTAP; `scripts/seed-dev.mjs` — seed dev
 - `supabase/schema.sql` — draft skema lengkap fase berikutnya (belum dipakai)
 
@@ -253,6 +258,6 @@ Halaman detail memakai query param (`?id=`) agar tetap kompatibel dengan static 
 Sama seperti `fritzyforce-nextjs`: `npm run deploy:workers` / `npm run deploy:pages` (Cloudflare), Vercel, atau Netlify (`netlify.toml`). Panduan lengkap bersama Supabase: [docs/deploy-supabase-cloudflare.md](docs/deploy-supabase-cloudflare.md). Domain `membership.fritzyforce.my.id` + Cloudflare Pages: [docs/deploy-cloudflare-pages-domain.md](docs/deploy-cloudflare-pages-domain.md).
 
 ## Pengaturan sementara
-- **Join Us (pendaftaran anggota baru) ditutup**: `RECRUITMENT_OPEN = false` di `lib/config.ts`. Tombol di homepage nonaktif dan
-  `/daftar/` menampilkan pemberitahuan. Ubah ke `true` untuk membuka lagi.
+- **Join Us dibuka/ditutup**: `RECRUITMENT_OPEN` di `lib/config.ts` (sekarang `true`). Bila `false`, tombol di homepage nonaktif dan `/join-us/`
+  menampilkan pemberitahuan "belum dibuka".
 - **QRIS** memakai satu gambar: `public/qris.jpg` (komponen `QrisImage`). Ganti file itu untuk memperbarui di semua halaman.

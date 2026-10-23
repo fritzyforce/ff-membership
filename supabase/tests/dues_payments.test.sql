@@ -5,6 +5,7 @@ select plan(61);
 -- Isolasi: kosongkan data dev DI DALAM transaksi ini (di-rollback di akhir).
 delete from public.dues_payments;
 delete from public.re_registrations;
+delete from public.recruitments;
 delete from public.audit_log;
 delete from public.profiles;
 delete from public.members;

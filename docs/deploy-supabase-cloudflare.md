@@ -329,7 +329,38 @@ Hapus data uji (nomor `TEST-…`, anggota/registrasi uji) lewat SQL Editor sebel
 | `db push` / `functions deploy` menyasar project salah | `npx supabase projects list`, `supabase link` ulang ke ref yang benar, atau pakai `--project-ref` eksplisit. |
 | Satu komputer, dua akun Supabase/Cloudflare | `npx supabase logout` lalu `login`; `npx wrangler logout` lalu `login`; cek `npx wrangler whoami`. |
 
-## Rilis terbaru: apa yang harus dijalankan (urut)
+## Rilis Join Us (rekrutmen anggota baru): apa yang harus dijalankan
+
+Berlaku untuk lingkungan yang sudah ter-deploy. **Staging dulu** (branch `staging`), uji, baru live (merge ke branch produksi). Ganti `<ref>`.
+
+1. **Database**
+   ```bash
+   cd /Users/brian/projects/ff-membership
+   npx supabase link --project-ref <ref>
+   npx supabase migration list          # migrasi yang belum ada di kolom Remote akan ikut terpasang
+   npx supabase db push                 # termasuk 20261026…recruitment (tabel recruitments, RPC, kebijakan upload bukti)
+   ```
+   Tidak ada pengaturan Auth atau secret baru. Resend dan `SITE_URL` yang sudah ada dipakai ulang.
+2. **Edge Function** (`send-status-email` diperluas untuk email pre-approved dan approved pendaftaran baru)
+   ```bash
+   npx supabase functions deploy send-status-email --project-ref <ref>
+   ```
+3. **Kode situs**: push ke branch lingkungan itu (staging: `staging`) → Cloudflare Pages build otomatis. `public/_redirects` mengalihkan `/daftar` lama ke `/join-us/`.
+   Pastikan `RECRUITMENT_OPEN = true` di `lib/config.ts` (sudah `true`).
+4. **Uji alur Join Us** di URL lingkungan itu:
+   1. Buka `/join-us/` → isi form dengan **email Anda sendiri** (atau email yang bisa menerima email) → dapat kode `REG-…`.
+   2. Login sebagai `admin_finance`/`superadmin` → **Recruitment Management** → buka pendaftar → **Pre-approve** → pesan "Email pemberitahuan terkirim".
+      Cek inbox: tombol **Bayar & Unggah Bukti**.
+   3. Klik tombol di email (`/cek-status/?kode=REG-…`) → QRIS tampil → unggah bukti JPG/PNG → status **Verifikasi Bayar**.
+   4. Kembali ke admin → **Approve** → muncul nomor `FRC-NNN` dan email "Selamat bergabung". Di detail anggota → **Riwayat Uang Kas** ada pembayaran
+      *Pembayaran pendaftaran anggota baru* (uang kas pertama, tanpa tunggakan).
+   5. Login sebagai `admin` biasa → tombol Pre-approve/Approve tidak ada (hanya Admin Finance dan Superadmin).
+5. **Live**: ulangi 1–4 dengan project ref, akun, dan key live. Hapus data uji dengan skrip reset (bagian "Reset data keanggotaan") bila perlu.
+
+Catatan: email pre-approved/approved hanya terkirim bila Edge Function sudah di-deploy dan secrets Resend terisi. Bila gagal, keputusan tetap tersimpan dan admin
+bisa memakai tombol **Kirim ulang email** di detail pendaftar.
+
+## Rilis sebelumnya (anggota lama, QRIS, akun staf, dll.)
 
 Untuk lingkungan yang **sudah** ter-deploy (staging, lalu live). Kerjakan **staging dulu**, uji, baru live. Ganti `<ref>` dengan project ref lingkungan itu.
 
@@ -386,13 +417,13 @@ nomor opsional, nama, catatan, lebih bayar) + impor dari Excel · nomor anggota 
 Berguna setelah masa uji, **sebelum** dipakai anggota sungguhan. **Destruktif dan tidak bisa dibatalkan setelah COMMIT.** Skrip: [`supabase/scripts/reset-membership.sql`](../supabase/scripts/reset-membership.sql).
 
 1. Dashboard Supabase → **SQL Editor** → tempel seluruh isi skrip → **Run**. Skrip membuka transaksi (`begin`) dan menampilkan satu baris hasil pengecekan
-   (jumlah anggota, registrasi ulang, pembayaran, counter, daftar anggota lama, akun staf tersisa). Harapan: `members = 0`, `re_registrations = 0`, `dues_payments = 0`,
+   (jumlah anggota, registrasi ulang, pembayaran, counter, daftar anggota lama, akun staf tersisa). Harapan: `members = 0`, `re_registrations = 0`, `recruitments = 0`, `dues_payments = 0`,
    `counter = 0`, `legacy_registered = 0`, `legacy_total` = jumlah anggota lama Anda, `profil_tersisa_staf` = jumlah staf.
 2. Bila angkanya benar, jalankan `commit;` di editor yang sama. Bila ragu, `rollback;`.
 3. Kosongkan file bukti di **Storage › payment-proofs** (hapus folder `re-registrations/` dan `dues/`) — file tidak ikut terhapus oleh SQL.
 4. Verifikasi: registrasi ulang berikutnya yang di-Approve bernomor **FRC-001**.
 
-Yang **dihapus**: anggota, akun login anggota, registrasi ulang, pembayaran uang kas, audit log. Yang **tetap**: akun staf, daftar anggota lama (nama, display name, nomor, lebih bayar — hanya status
+Yang **dihapus**: anggota, akun login anggota, registrasi ulang, pendaftaran anggota baru (Join Us), pembayaran uang kas, audit log. Yang **tetap**: akun staf, daftar anggota lama (nama, display name, nomor, lebih bayar — hanya status
 "sudah registrasi ulang" dikembalikan ke belum), pengaturan iuran.
 
 ## Update rutin

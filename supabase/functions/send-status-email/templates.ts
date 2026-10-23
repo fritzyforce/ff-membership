@@ -96,3 +96,67 @@ export function reRegistrationEmail(d: ReRegistrationEmailData): EmailMessage {
     ].join("\n"),
   };
 }
+
+export interface RecruitmentEmailData {
+  status: "pre_approved" | "approved";
+  fullName: string;
+  code: string;
+  /** Hanya untuk approved */
+  memberNumber?: string | null;
+  siteUrl: string;
+}
+
+/** Email pendaftaran anggota baru: pre-approved (lanjut bayar) dan approved (resmi jadi anggota). */
+export function recruitmentEmail(d: RecruitmentEmailData): EmailMessage {
+  const name = esc(d.fullName);
+  const statusLink = `${d.siteUrl}/cek-status/?kode=${encodeURIComponent(d.code)}`;
+
+  if (d.status === "pre_approved") {
+    return {
+      subject: "Pendaftaranmu diterima — lanjutkan pembayaran — Fritzy Force",
+      html: layout(
+        "Pendaftaran diterima",
+        `<p style="margin:0 0 12px;">Halo ${name},</p>
+         <p style="margin:0 0 12px;">Pendaftaranmu (kode <strong style="color:#f9e58e;">${esc(d.code)}</strong>) sudah <strong style="color:#f9e58e;">diterima</strong>.</p>
+         <p style="margin:0;">Langkah berikutnya: bayar uang kas pertama lewat QRIS, lalu unggah bukti pembayarannya di halaman status pendaftaran. Pembayaran ini dihitung sebagai uang kas pertamamu.</p>`,
+        { href: statusLink, label: "Bayar & Unggah Bukti" },
+      ),
+      text: [
+        `Halo ${d.fullName},`,
+        "",
+        `Pendaftaranmu (kode ${d.code}) sudah diterima.`,
+        "Langkah berikutnya: bayar uang kas pertama lewat QRIS, lalu unggah bukti pembayarannya di halaman status pendaftaran.",
+        "Pembayaran ini dihitung sebagai uang kas pertamamu.",
+        "",
+        `Bayar & unggah bukti: ${statusLink}`,
+      ].join("\n"),
+    };
+  }
+
+  const registerLink = `${d.siteUrl}/register/`;
+  const number = d.memberNumber ? `<strong style="color:#f9e58e;">${esc(d.memberNumber)}</strong>` : "";
+  return {
+    subject: "Selamat bergabung di Fritzy Force",
+    html: layout(
+      "Selamat bergabung!",
+      `<p style="margin:0 0 12px;">Halo ${name},</p>
+       <p style="margin:0 0 12px;">Pembayaranmu sudah diverifikasi dan kamu resmi menjadi anggota Fritzy Force.</p>
+       <p style="margin:0 0 12px;">Kode pendaftaran: <strong style="color:#f9e58e;">${esc(d.code)}</strong></p>
+       ${number ? `<p style="margin:0 0 12px;">Nomor anggota: ${number}</p>` : ""}
+       <p style="margin:0;">Buat akun dengan email ini di <a href="${esc(registerLink)}" style="color:#f9e58e;">halaman registrasi akun</a> untuk mengakses profil dan riwayat uang kas.</p>`,
+      { href: statusLink, label: "Cek Status Pendaftaran" },
+    ),
+    text: [
+      `Halo ${d.fullName},`,
+      "",
+      "Pembayaranmu sudah diverifikasi dan kamu resmi menjadi anggota Fritzy Force.",
+      `Kode pendaftaran: ${d.code}`,
+      d.memberNumber ? `Nomor anggota: ${d.memberNumber}` : "",
+      "",
+      `Cek status pendaftaran: ${statusLink}`,
+      `Buat akun dengan email ini: ${registerLink}`,
+    ]
+      .filter((l, i, a) => l !== "" || a[i - 1] !== "")
+      .join("\n"),
+  };
+}
