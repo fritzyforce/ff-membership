@@ -231,7 +231,9 @@ ditambah **alasan join Fritzy Force**:
 3. Pendaftar membuka `/cek-status/?kode=REG-…` → scan **QRIS**, bayar iuran 1 bulan (dari `app_settings`), **unggah bukti** → *Verifikasi Bayar*.
    Bila bukti tidak sesuai, admin memakai **Tolak Bukti** (catatan wajib, tampil ke pendaftar): pendaftar kembali ke *Pre-approved* dan bisa mengunggah ulang.
 4. Admin **Approve** → anggota dibuat (nomor `FRC-NNN`, sumber `recruitment`) dan email "selamat bergabung" dikirim.
-   **Pembayaran itu dicatat sebagai uang kas pertama**: bulan pembayaran (WIB) menjadi bulan awal penagihan dan langsung lunas — tanpa tunggakan.
+   **Pembayaran itu dicatat sebagai uang kas pertama** dan langsung lunas — tanpa tunggakan. Uang kas anggota rekrutmen **dihitung mulai November 2026**
+   (`app_settings.recruitment_dues_start = "2026-11"`): pembayaran Oktober dihitung sebagai November; mulai November memakai bulan pembayaran sebenarnya.
+   Ubah lewat SQL: `update public.app_settings set value = '"2027-01"' where key = 'recruitment_dues_start';`.
 5. Anggota **Registrasi Akun** dengan email pendaftaran → login → Akun Saya & Bayar Uang Kas.
 
 Teknis: tabel `recruitments` (status `pending → pre_approved → payment_submitted → approved | rejected`), semua tulis lewat RPC

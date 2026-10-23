@@ -125,17 +125,13 @@ function JoinUsForm() {
           className="flex flex-col gap-[18px] px-6 pb-8 pt-1 lg:card lg:max-w-[760px] lg:gap-5 lg:self-start lg:p-6"
         >
           <p className="text-body-sm">
-            Kolom bertanda <span className="field-required">*</span> wajib diisi. Pembayaran dilakukan nanti, setelah
-            pendaftaranmu diterima admin (kamu diberi tahu lewat email).
+            Kolom bertanda <span className="field-required">*</span> wajib diisi.
+            <br />
+            Jika pendaftaran diterima, akan diberitahukan melalui email terdaftar dan dilanjutkan dengan pembayaran uang kas
+            pertama.
           </p>
 
-          <Field
-            id="ju-email"
-            label="Email"
-            required
-            help="Email ini dipakai untuk kabar pendaftaran, registrasi akun, dan login."
-            error={errors.email}
-          >
+          <Field id="ju-email" label="Email" required error={errors.email}>
             <input className="input" type="email" placeholder="Email aktif" autoComplete="email" {...bind("email")} />
           </Field>
 
