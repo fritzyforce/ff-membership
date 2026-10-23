@@ -52,6 +52,8 @@ export interface RecruitmentPublicStatus {
   paymentNote: string;
   /** Iuran 1 bulan (rupiah), dari database */
   amount: number;
+  /** Bulan (YYYY-MM) yang dihitung sebagai uang kas pertama bila membayar sekarang */
+  firstPeriod: string;
   createdAt: string;
 }
 

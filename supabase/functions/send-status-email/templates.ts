@@ -117,14 +117,14 @@ export function recruitmentEmail(d: RecruitmentEmailData): EmailMessage {
       html: layout(
         "Pendaftaran diterima",
         `<p style="margin:0 0 12px;">Halo ${name},</p>
-         <p style="margin:0 0 12px;">Pendaftaranmu (kode <strong style="color:#f9e58e;">${esc(d.code)}</strong>) sudah <strong style="color:#f9e58e;">diterima</strong>.</p>
+         <p style="margin:0 0 12px;">Pendaftaranmu sudah <strong style="color:#f9e58e;">diterima</strong>.</p>
          <p style="margin:0;">Langkah berikutnya: bayar uang kas pertama lewat QRIS, lalu unggah bukti pembayarannya di halaman status pendaftaran. Pembayaran ini dihitung sebagai uang kas pertamamu.</p>`,
         { href: statusLink, label: "Bayar & Unggah Bukti" },
       ),
       text: [
         `Halo ${d.fullName},`,
         "",
-        `Pendaftaranmu (kode ${d.code}) sudah diterima.`,
+        "Pendaftaranmu sudah diterima.",
         "Langkah berikutnya: bayar uang kas pertama lewat QRIS, lalu unggah bukti pembayarannya di halaman status pendaftaran.",
         "Pembayaran ini dihitung sebagai uang kas pertamamu.",
         "",

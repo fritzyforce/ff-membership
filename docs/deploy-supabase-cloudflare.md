@@ -338,7 +338,7 @@ Berlaku untuk lingkungan yang sudah ter-deploy. **Staging dulu** (branch `stagin
    cd /Users/brian/projects/ff-membership
    npx supabase link --project-ref <ref>
    npx supabase migration list          # migrasi yang belum ada di kolom Remote akan ikut terpasang
-   npx supabase db push                 # termasuk 20261026…recruitment (tabel recruitments, RPC, kebijakan upload bukti)
+   npx supabase db push                 # termasuk 20261026…recruitment (tabel recruitments, RPC, kebijakan upload bukti) dan 20261027…recruitment_dues_start
    ```
    Tidak ada pengaturan Auth atau secret baru. Resend dan `SITE_URL` yang sudah ada dipakai ulang.
 2. **Edge Function** (`send-status-email` diperluas untuk email pre-approved dan approved pendaftaran baru)
@@ -353,7 +353,8 @@ Berlaku untuk lingkungan yang sudah ter-deploy. **Staging dulu** (branch `stagin
       Cek inbox: tombol **Bayar & Unggah Bukti**.
    3. Klik tombol di email (`/cek-status/?kode=REG-…`) → QRIS tampil → unggah bukti JPG/PNG → status **Verifikasi Bayar**.
    4. Kembali ke admin → **Approve** → muncul nomor `FRC-NNN` dan email "Selamat bergabung". Di detail anggota → **Riwayat Uang Kas** ada pembayaran
-      *Pembayaran pendaftaran anggota baru* (uang kas pertama, tanpa tunggakan).
+      *Pembayaran pendaftaran anggota baru* (uang kas pertama, tanpa tunggakan). Uang kas anggota rekrutmen dihitung **mulai November 2026**
+      (pembayaran sebelum itu dicatat sebagai November); halaman pembayaran menyebut bulannya.
    5. Login sebagai `admin` biasa → tombol Pre-approve/Approve tidak ada (hanya Admin Finance dan Superadmin).
 5. **Live**: ulangi 1–4 dengan project ref, akun, dan key live. Hapus data uji dengan skrip reset (bagian "Reset data keanggotaan") bila perlu.
 
