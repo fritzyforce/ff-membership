@@ -113,18 +113,18 @@ export function recruitmentEmail(d: RecruitmentEmailData): EmailMessage {
 
   if (d.status === "pre_approved") {
     return {
-      subject: "Pendaftaranmu pre-approved — lanjutkan pembayaran — Fritzy Force",
+      subject: "Pendaftaranmu diterima — lanjutkan pembayaran — Fritzy Force",
       html: layout(
-        "Pendaftaran pre-approved",
+        "Pendaftaran diterima",
         `<p style="margin:0 0 12px;">Halo ${name},</p>
-         <p style="margin:0 0 12px;">Pendaftaranmu (kode <strong style="color:#f9e58e;">${esc(d.code)}</strong>) sudah <strong style="color:#f9e58e;">pre-approved</strong>.</p>
+         <p style="margin:0 0 12px;">Pendaftaranmu (kode <strong style="color:#f9e58e;">${esc(d.code)}</strong>) sudah <strong style="color:#f9e58e;">diterima</strong>.</p>
          <p style="margin:0;">Langkah berikutnya: bayar uang kas pertama lewat QRIS, lalu unggah bukti pembayarannya di halaman status pendaftaran. Pembayaran ini dihitung sebagai uang kas pertamamu.</p>`,
         { href: statusLink, label: "Bayar & Unggah Bukti" },
       ),
       text: [
         `Halo ${d.fullName},`,
         "",
-        `Pendaftaranmu (kode ${d.code}) sudah pre-approved.`,
+        `Pendaftaranmu (kode ${d.code}) sudah diterima.`,
         "Langkah berikutnya: bayar uang kas pertama lewat QRIS, lalu unggah bukti pembayarannya di halaman status pendaftaran.",
         "Pembayaran ini dihitung sebagai uang kas pertamamu.",
         "",

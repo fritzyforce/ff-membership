@@ -43,13 +43,15 @@ export default function RecruitmentStatusCard({ code, onBack }: { code: string; 
 
 function Body({ data, onChanged }: { data: RecruitmentPublicStatus; onChanged: () => void }) {
   const status = RECRUITMENT_STATUS[data.status];
+  // pendaftar tidak perlu tahu istilah internal "pre-approved": tampilkan sebagai "Diterima"
+  const statusLabel = data.status === "pre_approved" ? "Diterima" : status.label;
   return (
     <>
       <div className="card stack gap-[10px]">
         <div className="row items-center justify-between">
           <div className="text-caption">{data.code}</div>
           <Badge tone={status.badge} dot={data.status === "rejected"}>
-            {status.label}
+            {statusLabel}
           </Badge>
         </div>
         <h1 className="text-h2 text-[20px]">
@@ -57,9 +59,9 @@ function Body({ data, onChanged }: { data: RecruitmentPublicStatus; onChanged: (
           {data.status === "approved" ? "!" : ""}
         </h1>
         <div className="text-body-sm">
-          {data.status === "pending" && "Pendaftaranmu sedang direview admin. Kamu akan menerima email bila sudah pre-approved."}
+          {data.status === "pending" && "Pendaftaranmu sedang direview admin. Kamu akan menerima email bila pendaftaranmu diterima."}
           {data.status === "pre_approved" &&
-            "Pendaftaranmu sudah pre-approved. Selesaikan pembayaran uang kas pertama di bawah, lalu unggah bukti pembayarannya."}
+            "Pendaftaranmu sudah diterima. Selesaikan pembayaran uang kas pertama di bawah, lalu unggah bukti pembayarannya."}
           {data.status === "payment_submitted" && "Bukti pembayaran sudah kami terima dan sedang diverifikasi admin."}
           {data.status === "approved" && "Pembayaran terverifikasi. Kamu resmi menjadi anggota Fritzy Force."}
           {data.status === "rejected" && "Mohon maaf, pendaftaranmu belum dapat kami terima."}

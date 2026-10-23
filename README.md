@@ -226,6 +226,7 @@ ditambah **alasan join Fritzy Force**:
 **Alur** — pembayaran dilakukan SETELAH pre-approve:
 1. Pendaftar mengirim form → kode **`REG-XXXX-XXXX`** → status *Menunggu Review* (`/join-us/berhasil/`).
 2. **Admin finance / superadmin** → menu *Recruitment Management* → **Pre-approve** → pendaftar menerima **email** berisi tombol ke halaman cek status.
+   Di sisi pendaftar (halaman status dan email) istilahnya **"Diterima"**; kata *pre-approved* hanya muncul di halaman admin.
    (Reject juga hanya admin finance / superadmin, sama seperti registrasi ulang; admin biasa hanya melihat.)
 3. Pendaftar membuka `/cek-status/?kode=REG-…` → scan **QRIS**, bayar iuran 1 bulan (dari `app_settings`), **unggah bukti** → *Verifikasi Bayar*.
    Bila bukti tidak sesuai, admin memakai **Tolak Bukti** (catatan wajib, tampil ke pendaftar): pendaftar kembali ke *Pre-approved* dan bisa mengunggah ulang.
