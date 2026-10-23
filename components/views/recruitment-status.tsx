@@ -7,7 +7,7 @@ import { IconCheck } from "@/components/ui/icons";
 import { Badge, Loading, Notice, QrisImage } from "@/components/ui/primitives";
 import UploadBox from "@/components/ui/upload-box";
 import { getRecruitmentStatus, submitRecruitmentPayment } from "@/lib/data/recruitment";
-import { RECRUITMENT_STATUS, formatRupiah } from "@/lib/format";
+import { RECRUITMENT_STATUS, formatPeriod, formatRupiah } from "@/lib/format";
 import { useData } from "@/lib/hooks";
 import { rememberRegisterEmail } from "@/lib/register-prefill";
 import type { RecruitmentPublicStatus } from "@/lib/types";
@@ -133,7 +133,9 @@ function Payment({ data, onSent }: { data: RecruitmentPublicStatus; onSent: () =
           <div className="text-label text-gold-100">QRIS Fritzy Force</div>
           <div className="text-body-sm text-center">Scan untuk membayar uang kas pertama</div>
           <div className="text-h1 text-[22px]">{formatRupiah(data.amount)}</div>
-          <div className="text-caption text-center">Pembayaran ini dihitung sebagai uang kas pertamamu (bulan ini).</div>
+          <div className="text-caption text-center">
+            Pembayaran ini dihitung sebagai uang kas pertamamu ({formatPeriod(data.firstPeriod).split(" ")[0]}).
+          </div>
         </div>
       </section>
       <section className="stack gap-3">
