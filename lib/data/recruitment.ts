@@ -26,7 +26,7 @@ const ERROR_TEXT: Record<string, string> = {
   INVALID_PROOF: "Bukti pembayaran tidak valid. Unggah ulang file JPG/PNG.",
   PROOF_NOT_FOUND: "Bukti pembayaran belum terunggah. Coba kirim ulang.",
   NOT_FOUND: "Data pendaftaran tidak ditemukan.",
-  NOT_PAYABLE: "Pembayaran belum bisa dikirim: pendaftaranmu belum pre-approved, atau bukti sudah terkirim.",
+  NOT_PAYABLE: "Pembayaran belum bisa dikirim: pendaftaranmu belum diterima, atau bukti sudah terkirim.",
   FORBIDDEN: "Hanya Admin Finance atau Superadmin yang bisa melakukan aksi ini. Silakan login ulang.",
   ALREADY_REVIEWED: "Pendaftaran ini sudah diproses oleh admin lain atau statusnya sudah berubah.",
   NOT_PAID: "Pendaftar belum mengirim bukti pembayaran.",

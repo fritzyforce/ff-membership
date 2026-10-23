@@ -64,7 +64,7 @@ function Closed() {
   );
 }
 
-/** Join Us: pendaftaran anggota baru. Pembayaran dilakukan SETELAH pendaftaran di-pre-approve admin. */
+/** Join Us: pendaftaran anggota baru. Pembayaran dilakukan SETELAH pendaftaran diterima admin (pre-approve di sisi admin). */
 export default function JoinUsView() {
   return RECRUITMENT_OPEN ? <JoinUsForm /> : <Closed />;
 }
@@ -113,7 +113,7 @@ function JoinUsForm() {
           <h2 className="text-h1 text-[30px]">Bergabung dengan Fritzy Force</h2>
           <ol className="text-body m-0 flex list-decimal flex-col gap-2 pl-5">
             <li>Isi formulir pendaftaran.</li>
-            <li>Admin meninjau pendaftaranmu. Bila lolos (pre-approved), kamu menerima email.</li>
+            <li>Admin meninjau pendaftaranmu. Bila diterima, kamu menerima email.</li>
             <li>Bayar uang kas pertama lewat QRIS dan unggah bukti pembayaran.</li>
             <li>Setelah pembayaran diverifikasi, kamu resmi menjadi anggota.</li>
           </ol>
@@ -126,7 +126,7 @@ function JoinUsForm() {
         >
           <p className="text-body-sm">
             Kolom bertanda <span className="field-required">*</span> wajib diisi. Pembayaran dilakukan nanti, setelah
-            pendaftaranmu di-pre-approve admin (kamu diberi tahu lewat email).
+            pendaftaranmu diterima admin (kamu diberi tahu lewat email).
           </p>
 
           <Field
