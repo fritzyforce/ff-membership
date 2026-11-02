@@ -47,7 +47,7 @@ export default function HomeView() {
               <button
                 type="button"
                 disabled
-                title="Pendaftaran anggota baru belum dibuka"
+                title="Periode Open Member sudah ditutup"
                 className="btn btn-secondary btn-block whitespace-nowrap lg:w-auto lg:px-8 lg:py-4"
               >
                 Join Us Now!
@@ -61,7 +61,7 @@ export default function HomeView() {
             </Link>
           </div>
           {!RECRUITMENT_OPEN && (
-            <p className="text-caption">Pendaftaran anggota baru (Join Us) segera dibuka.</p>
+            <p className="text-caption">Periode Open Member sudah ditutup. Silahkan tunggu open member selanjutnya dari Fritzy Force!</p>
           )}
           <p className="text-body-sm lg:hidden">
             Sudah daftar?{" "}
