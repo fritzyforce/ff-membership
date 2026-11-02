@@ -82,6 +82,7 @@ interface StatusRow {
   email: string | null;
   payment_note: string;
   amount: number;
+  first_period: string;
   created_at: string;
 }
 
@@ -98,6 +99,7 @@ export async function getRecruitmentStatus(code: string): Promise<RecruitmentPub
     email: row.email,
     paymentNote: row.payment_note,
     amount: row.amount,
+    firstPeriod: row.first_period,
     createdAt: row.created_at,
   };
 }

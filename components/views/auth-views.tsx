@@ -266,7 +266,7 @@ export function RegisterView() {
         <Field
           id="r-email"
           label="Email"
-          help={locked ? "Diambil dari pendaftaran yang kamu cek." : undefined}
+          help={locked ? "Diambil dari email pendaftaran" : undefined}
         >
           <input id="r-email" className="input" type="email" placeholder="Email pendaftaran" autoComplete="email" readOnly={locked} value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>

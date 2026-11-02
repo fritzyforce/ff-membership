@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 
 import PageTopbar from "@/components/layout/page-topbar";
 import { Field, Logo, Notice } from "@/components/ui/primitives";
+import RecruitmentClosedView from "@/components/views/recruitment-closed-view";
 import { RECRUITMENT_OPEN } from "@/lib/config";
 import { submitRecruitment } from "@/lib/data/recruitment";
 
@@ -50,23 +51,9 @@ function validate(v: Values): Errors {
   return e;
 }
 
-/** Pendaftaran anggota baru ditutup sementara (lihat RECRUITMENT_OPEN di lib/config). */
-function Closed() {
-  return (
-    <div className="flex min-h-screen flex-col">
-      <PageTopbar title="Join Us" backHref="/" />
-      <main className="mx-auto flex w-full max-w-[440px] flex-col items-center gap-5 px-8 py-10 text-center">
-        <Logo size={72} />
-        <h1 className="text-h1 text-[24px]">Pendaftaran belum dibuka</h1>
-        <p className="text-body-sm">Pendaftaran anggota baru sedang ditutup sementara. Silakan kembali lagi nanti.</p>
-      </main>
-    </div>
-  );
-}
-
 /** Join Us: pendaftaran anggota baru. Pembayaran dilakukan SETELAH pendaftaran diterima admin (pre-approve di sisi admin). */
 export default function JoinUsView() {
-  return RECRUITMENT_OPEN ? <JoinUsForm /> : <Closed />;
+  return RECRUITMENT_OPEN ? <JoinUsForm /> : <RecruitmentClosedView />;
 }
 
 function JoinUsForm() {
@@ -125,17 +112,13 @@ function JoinUsForm() {
           className="flex flex-col gap-[18px] px-6 pb-8 pt-1 lg:card lg:max-w-[760px] lg:gap-5 lg:self-start lg:p-6"
         >
           <p className="text-body-sm">
-            Kolom bertanda <span className="field-required">*</span> wajib diisi. Pembayaran dilakukan nanti, setelah
-            pendaftaranmu diterima admin (kamu diberi tahu lewat email).
+            Kolom bertanda <span className="field-required">*</span> wajib diisi.
+            <br />
+            Jika pendaftaran diterima, akan diberitahukan melalui email terdaftar dan dilanjutkan dengan pembayaran uang kas
+            pertama.
           </p>
 
-          <Field
-            id="ju-email"
-            label="Email"
-            required
-            help="Email ini dipakai untuk kabar pendaftaran, registrasi akun, dan login."
-            error={errors.email}
-          >
+          <Field id="ju-email" label="Email" required error={errors.email}>
             <input className="input" type="email" placeholder="Email aktif" autoComplete="email" {...bind("email")} />
           </Field>
 

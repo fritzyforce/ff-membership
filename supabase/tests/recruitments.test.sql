@@ -1,6 +1,6 @@
 -- pgTAP: rekrutmen anggota baru (Join Us).  Jalankan: npm run db:test
 begin;
-select plan(42);
+select plan(44);
 
 -- fixtures: admin biasa, admin finance; bukti yang "sudah diunggah"
 insert into public.account_provisioning (email, role, display_name) values
@@ -117,14 +117,26 @@ select is((select s.arrears_count from public.get_dues_summary((select id from p
 reset role;
 select ok((select m.source = 'recruitment' and m.full_name = 'Calon' and m.nickname = 'Calon' and m.domicile = 'Bandung'
                   and m.social_instagram = '@calon' and m.old_member_number is null
-                  and m.dues_start_period = to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM')
+                  and m.dues_start_period = greatest(to_char(now() at time zone 'Asia/Jakarta', 'YYYY-MM'),
+                        (select s.value #>> '{}' from public.app_settings s where s.key = 'recruitment_dues_start'))
            from public.members m where m.email = 'calon@test.local'),
-  'anggota baru: sumber recruitment, nama = nickname bila kosong, data tersalin, bulan awal = bulan pembayaran');
+  'anggota baru: sumber recruitment, nama = nickname bila kosong, data tersalin, bulan awal = bulan pembayaran tetapi tidak sebelum recruitment_dues_start');
 select ok((select d.source = 'recruitment' and d.status = 'paid' and d.months = 1 and d.proof_path like 'recruitment/bbbbbbbb%'
                   and d.amount = public.dues_monthly_amount()
            from public.dues_payments d join public.members m on m.id = d.member_id where m.email = 'calon@test.local'),
   'pembayaran tercatat sebagai uang kas pertama (sumber recruitment, bukti yang terakhir)');
 select is((select status::text from public.recruitments where email = 'calon@test.local'), 'approved', 'status akhir approved');
+select is((select d.period_from from public.dues_payments d join public.members m on m.id = d.member_id
+           where m.email = 'calon@test.local' and d.source = 'recruitment'),
+  (select m.dues_start_period from public.members m where m.email = 'calon@test.local'),
+  'uang kas pertama jatuh pada bulan awal penagihan (dihitung mulai recruitment_dues_start)');
+
+-- bulan yang ditampilkan ke pendaftar sebelum membayar = bulan uang kas pertama
+update public.app_settings set value = '"2099-05"' where key = 'recruitment_dues_start';
+set local role anon;
+select is((select first_period from public.get_recruitment_status(current_setting('test.code'))), '2099-05',
+  'status publik memuat first_period (dibatasi recruitment_dues_start)');
+reset role;
 
 -- tolak pendaftaran baru; yang ditolak boleh mendaftar lagi
 set local role anon;
